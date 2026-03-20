@@ -440,8 +440,8 @@ class CanvasTerminalView @JvmOverloads constructor(
     private var onTabClick: ((String) -> Unit)? = null
     private var onTabClose: ((String) -> Unit)? = null
     private var onNewTab: (() -> Unit)? = null
-    private val tabNodes = mutableListOf<TabHitNode>()
-    private val addTabButtonRect = RectF()
+    @Volatile
+    private var tabHitSnapshot = TabHitSnapshot()
     private var tabContentWidth = 0f
     private var tabScrollOffsetX = 0f
     private var pendingScrollToEndAfterNewTab = false
@@ -545,6 +545,11 @@ class CanvasTerminalView @JvmOverloads constructor(
         val tabId: String,
         val tabRect: RectF,
         val closeRect: RectF?
+    )
+
+    private data class TabHitSnapshot(
+        val nodes: List<TabHitNode> = emptyList(),
+        val addButtonRect: RectF = RectF()
     )
 
     private sealed interface TabTouchTarget {
@@ -895,7 +900,7 @@ class CanvasTerminalView @JvmOverloads constructor(
         onNewTab: (() -> Unit)?
     ) {
         val newTabCount = tabs.size
-        this.tabs = tabs
+        this.tabs = tabs.toList()
         this.currentTabId = currentTabId
         this.onTabClick = onTabClick
         this.onTabClose = onTabClose
@@ -1278,8 +1283,7 @@ class CanvasTerminalView @JvmOverloads constructor(
         onTabClick = null
         onTabClose = null
         onNewTab = null
-        tabNodes.clear()
-        addTabButtonRect.setEmpty()
+        tabHitSnapshot = TabHitSnapshot()
         pendingScrollToEndAfterNewTab = false
         pendingScrollToEndMinTabCount = 0
         if (!tabScroller.isFinished) {
@@ -1384,8 +1388,7 @@ class CanvasTerminalView @JvmOverloads constructor(
     
     private fun drawTabBar(canvas: Canvas) {
         if (!hasTabBar()) {
-            tabNodes.clear()
-            addTabButtonRect.setEmpty()
+            tabHitSnapshot = TabHitSnapshot()
             tabContentWidth = 0f
             tabScrollOffsetX = 0f
             if (!tabScroller.isFinished) {
@@ -1402,22 +1405,22 @@ class CanvasTerminalView @JvmOverloads constructor(
 
         val rowTop = tabVerticalPaddingPx
         val rowBottom = (barHeight - tabVerticalPaddingPx).coerceAtLeast(rowTop + 1f)
+        val addButtonRect = RectF()
         val addButtonLeft: Float
         if (hasAddTabButton()) {
             val addButtonRight = (canvas.width.toFloat() - tabHorizontalPaddingPx).coerceAtLeast(0f)
             addButtonLeft = (addButtonRight - addButtonSizePx).coerceAtLeast(0f)
             val addButtonTop = rowTop + ((rowBottom - rowTop - addButtonSizePx) / 2f).coerceAtLeast(0f)
             val addButtonBottom = (addButtonTop + addButtonSizePx).coerceAtMost(rowBottom)
-            addTabButtonRect.set(addButtonLeft, addButtonTop, addButtonRight, addButtonBottom)
+            addButtonRect.set(addButtonLeft, addButtonTop, addButtonRight, addButtonBottom)
             val isAddPressed =
                 isTabTouchActive &&
                     !tabTouchMoved &&
                     activeTabTouchTarget is TabTouchTarget.NewTab &&
-                    addTabButtonRect.contains(tabTouchX, tabTouchY)
-            drawAddTabButton(canvas, addTabButtonRect, isPressed = isAddPressed)
+                    addButtonRect.contains(tabTouchX, tabTouchY)
+            drawAddTabButton(canvas, addButtonRect, isPressed = isAddPressed)
         } else {
             addButtonLeft = (canvas.width.toFloat() - tabHorizontalPaddingPx).coerceAtLeast(0f)
-            addTabButtonRect.setEmpty()
         }
 
         val tabsLeft = tabHorizontalPaddingPx
@@ -1427,7 +1430,7 @@ class CanvasTerminalView @JvmOverloads constructor(
             (canvas.width.toFloat() - tabHorizontalPaddingPx).coerceAtLeast(tabsLeft)
         }
         if (tabsRight <= tabsLeft) {
-            tabNodes.clear()
+            tabHitSnapshot = TabHitSnapshot(addButtonRect = RectF(addButtonRect))
             tabContentWidth = 0f
             tabScrollOffsetX = 0f
             if (!tabScroller.isFinished) {
@@ -1450,7 +1453,7 @@ class CanvasTerminalView @JvmOverloads constructor(
                 tabScrollOffsetX = 0f
             }
         }
-        tabNodes.clear()
+        val nextTabNodes = ArrayList<TabHitNode>(tabs.size)
 
         canvas.save()
         canvas.clipRect(tabsLeft, rowTop, tabsRight, rowBottom)
@@ -1468,7 +1471,7 @@ class CanvasTerminalView @JvmOverloads constructor(
                     null
                 }
 
-                tabNodes.add(
+                nextTabNodes.add(
                     TabHitNode(
                         tabId = tab.id,
                         tabRect = RectF(tabRect),
@@ -1505,6 +1508,10 @@ class CanvasTerminalView @JvmOverloads constructor(
         } finally {
             canvas.restore()
         }
+        tabHitSnapshot = TabHitSnapshot(
+            nodes = nextTabNodes.toList(),
+            addButtonRect = RectF(addButtonRect)
+        )
     }
 
     private fun drawTabNode(
@@ -1596,11 +1603,13 @@ class CanvasTerminalView @JvmOverloads constructor(
         if (!hasTabBar() || y < 0f || y > tabBarHeightPx) {
             return TabTouchTarget.None
         }
-        if (addTabButtonRect.contains(x, y)) {
+        val hitSnapshot = tabHitSnapshot
+        if (hitSnapshot.addButtonRect.contains(x, y)) {
             return TabTouchTarget.NewTab
         }
-        for (index in tabNodes.indices.reversed()) {
-            val node = tabNodes[index]
+        val nodes = hitSnapshot.nodes
+        for (index in nodes.indices.reversed()) {
+            val node = nodes[index]
             if (node.closeRect?.contains(x, y) == true) {
                 return TabTouchTarget.CloseTab(node.tabId)
             }
