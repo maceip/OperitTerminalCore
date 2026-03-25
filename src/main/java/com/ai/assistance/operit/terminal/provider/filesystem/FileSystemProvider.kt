@@ -1,5 +1,6 @@
 package com.ai.assistance.operit.terminal.provider.filesystem
 
+import android.os.Process
 import java.io.File
 
 /**
@@ -16,19 +17,30 @@ data class PRootBindMount(
  * 用于统一维护 TerminalManager 的 proot -b 参数，以及 FileSystemProvider 的路径软映射逻辑。
  */
 object PRootMountMapping {
-    private val BASE_BIND_MOUNTS: List<PRootBindMount> = listOf(
-        PRootBindMount("/dev"),
-        PRootBindMount("/proc"),
-        PRootBindMount("/sys"),
-        PRootBindMount("/dev/pts"),
-        PRootBindMount("/proc/self/fd", "/dev/fd"),
-        PRootBindMount("/proc/self/fd/0", "/dev/stdin"),
-        PRootBindMount("/proc/self/fd/1", "/dev/stdout"),
-        PRootBindMount("/proc/self/fd/2", "/dev/stderr"),
-        PRootBindMount("/storage/emulated/0", "/sdcard"),
-        PRootBindMount("/storage/emulated/0", "/storage/emulated/0"),
-        PRootBindMount("/data/local/tmp", "/data/local/tmp")
-    )
+    private const val PER_USER_RANGE = 100000
+
+    fun currentUserId(): Int = Process.myUid() / PER_USER_RANGE
+
+    fun currentEmulatedStoragePath(): String = "/storage/emulated/${currentUserId()}"
+
+    fun currentUserDataRootPath(): String = "/data/user/${currentUserId()}"
+
+    private fun buildBaseBindMounts(): List<PRootBindMount> {
+        val emulatedStoragePath = currentEmulatedStoragePath()
+        return listOf(
+            PRootBindMount("/dev"),
+            PRootBindMount("/proc"),
+            PRootBindMount("/sys"),
+            PRootBindMount("/dev/pts"),
+            PRootBindMount("/proc/self/fd", "/dev/fd"),
+            PRootBindMount("/proc/self/fd/0", "/dev/stdin"),
+            PRootBindMount("/proc/self/fd/1", "/dev/stdout"),
+            PRootBindMount("/proc/self/fd/2", "/dev/stderr"),
+            PRootBindMount(emulatedStoragePath, "/sdcard"),
+            PRootBindMount(emulatedStoragePath, emulatedStoragePath),
+            PRootBindMount("/data/local/tmp", "/data/local/tmp")
+        )
+    }
 
     /**
      * 各模式共用的固定 bind 挂载（不含 data 目录、动态 homeDir 和可选 /dev/shm）。
@@ -38,14 +50,15 @@ object PRootMountMapping {
         packageName: String,
         chrootEnabled: Boolean
     ): List<PRootBindMount> {
+        val userDataRootPath = currentUserDataRootPath()
         return if (chrootEnabled) {
             listOf(
-                PRootBindMount("/data/user/0", "/data/user/0"),
+                PRootBindMount(userDataRootPath, userDataRootPath),
                 PRootBindMount("/data/data", "/data/data")
             )
         } else {
             listOf(
-                PRootBindMount(appDataDir, "/data/user/0/$packageName"),
+                PRootBindMount(appDataDir, "$userDataRootPath/$packageName"),
                 PRootBindMount(appDataDir, "/data/data/$packageName")
             )
         }
@@ -57,8 +70,8 @@ object PRootMountMapping {
         packageName: String,
         chrootEnabled: Boolean
     ): List<PRootBindMount> {
-        // 动态挂载：-b $homeDir:$homeDir（通常为 /data/user/0/<package>/files）
-        return BASE_BIND_MOUNTS +
+        // 动态挂载：-b $homeDir:$homeDir（通常为 /data/user/<current_user_id>/<package>/files）
+        return buildBaseBindMounts() +
             buildDataBindMounts(appDataDir, packageName, chrootEnabled) +
             PRootBindMount(homeDir, homeDir)
     }

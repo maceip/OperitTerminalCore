@@ -2,6 +2,7 @@ package com.ai.assistance.operit.terminal.utils
 
 import android.content.Context
 import android.util.Log
+import com.ai.assistance.operit.terminal.provider.filesystem.PRootMountMapping
 import com.ai.assistance.operit.terminal.data.SSHConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -99,7 +100,7 @@ class SSHDServerManager private constructor(private val context: Context) {
             server.subsystemFactories = listOf(SftpSubsystemFactory())
             
             // 配置文件系统工厂 - 设置根目录为外部存储
-            val sdcardPath = Paths.get("/storage/emulated/0")
+            val sdcardPath = Paths.get(PRootMountMapping.currentEmulatedStoragePath())
             server.fileSystemFactory = VirtualFileSystemFactory(sdcardPath)
             
             // 启动服务器
@@ -110,7 +111,7 @@ class SSHDServerManager private constructor(private val context: Context) {
             Log.i(TAG, "SSHD服务器已启动")
             Log.i(TAG, "端口: ${sshConfig.localSshPort}")
             Log.i(TAG, "用户名: ${sshConfig.localSshUsername}")
-            Log.i(TAG, "根目录: /storage/emulated/0 (/sdcard)")
+            Log.i(TAG, "根目录: ${sdcardPath} (/sdcard)")
             
             true
         } catch (e: Exception) {
@@ -157,7 +158,7 @@ class SSHDServerManager private constructor(private val context: Context) {
             SSHD服务器运行中
             端口: ${currentConfig!!.localSshPort}
             用户名: ${currentConfig!!.localSshUsername}
-            根目录: /storage/emulated/0 (/sdcard)
+            根目录: ${PRootMountMapping.currentEmulatedStoragePath()} (/sdcard)
             """.trimIndent()
         } else {
             "SSHD服务器未运行"

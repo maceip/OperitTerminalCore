@@ -34,14 +34,14 @@ class LocalFileSystemProvider(
     }
 
     /**
-     * App files 目录（通常为 /data/user/0/<package>/files）
+     * App files 目录（通常为 /data/user/<current_user_id>/<package>/files）
      */
     private val appFilesDir: String? by lazy {
         context?.filesDir?.absolutePath
     }
 
     /**
-     * App data 目录（通常为 /data/user/0/<package>）
+     * App data 目录（通常为 /data/user/<current_user_id>/<package>）
      */
     private val appDataDir: String? by lazy {
         context?.applicationInfo?.dataDir
