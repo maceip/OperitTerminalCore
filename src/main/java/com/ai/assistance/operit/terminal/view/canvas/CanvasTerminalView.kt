@@ -604,7 +604,35 @@ class CanvasTerminalView @JvmOverloads constructor(
             getEmulator = { emulator },
             getTextMetrics = { textMetrics },
             getScrollOffsetY = { scrollOffsetY },
-            getContentTop = { getTerminalContentTop() }
+            getContentTop = { getTerminalContentTop() },
+            getTabs = { tabs },
+            getCurrentTabId = { currentTabId },
+            getTabSnapshot = {
+                TerminalTabAccessibilitySnapshot(
+                    nodes =
+                        tabHitSnapshot.nodes.map { node ->
+                            val tab =
+                                tabs.firstOrNull { it.id == node.tabId } ?: TerminalTabRenderItem(
+                                    id = node.tabId,
+                                    title = "",
+                                    canClose = node.closeRect != null
+                                )
+                            TerminalTabAccessibilityNode(
+                                tabId = node.tabId,
+                                title = tab.title,
+                                canClose = tab.canClose,
+                                isActive = node.tabId == currentTabId,
+                                tabRect = RectF(node.tabRect),
+                                closeRect = node.closeRect?.let { rect -> RectF(rect) }
+                            )
+                        },
+                    addButtonRect = RectF(tabHitSnapshot.addButtonRect)
+                )
+            },
+            hasNewTabAction = { onNewTab != null },
+            onSelectTab = { tabId -> onTabClick?.invoke(tabId) },
+            onCloseTab = { tabId -> onTabClose?.invoke(tabId) },
+            onNewTab = { onNewTab?.invoke() }
         )
         accessibilityDelegate = terminalAccessibilityDelegate
         
@@ -943,6 +971,7 @@ class CanvasTerminalView @JvmOverloads constructor(
             updateTerminalSize(width, height)
         }
         requestRender()
+        terminalAccessibilityDelegate.notifyContentChanged()
     }
 
     fun setImeViewportState(animationOffsetPx: Int, committedBottomInsetPx: Int) {

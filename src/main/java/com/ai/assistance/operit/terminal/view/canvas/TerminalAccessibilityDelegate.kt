@@ -2,32 +2,56 @@ package com.ai.assistance.operit.terminal.view.canvas
 
 import android.content.Context
 import android.graphics.Rect
+import android.graphics.RectF
 import android.os.Bundle
 import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeProvider
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import com.ai.assistance.operit.terminal.R
 import com.ai.assistance.operit.terminal.view.domain.ansi.AnsiTerminalEmulator
 import com.ai.assistance.operit.terminal.view.domain.ansi.TerminalChar
+import kotlin.math.roundToInt
+
+internal data class TerminalTabAccessibilityNode(
+    val tabId: String,
+    val title: String,
+    val canClose: Boolean,
+    val isActive: Boolean,
+    val tabRect: RectF,
+    val closeRect: RectF?
+)
+
+internal data class TerminalTabAccessibilitySnapshot(
+    val nodes: List<TerminalTabAccessibilityNode> = emptyList(),
+    val addButtonRect: RectF = RectF()
+)
 
 /**
  * 为终端视图提供无障碍支持
- * 将终端内容按行暴露给屏幕阅读器，支持逐行朗读
+ * 将终端内容按行暴露给屏幕阅读器，并补齐顶部标签栏的虚拟节点。
  */
-class TerminalAccessibilityDelegate(
+internal class TerminalAccessibilityDelegate(
     private val view: CanvasTerminalView,
     private val getEmulator: () -> AnsiTerminalEmulator?,
     private val getTextMetrics: () -> TextMetrics,
     private val getScrollOffsetY: () -> Float,
-    private val getContentTop: () -> Float
+    private val getContentTop: () -> Float,
+    private val getTabs: () -> List<TerminalTabRenderItem>,
+    private val getCurrentTabId: () -> String?,
+    private val getTabSnapshot: () -> TerminalTabAccessibilitySnapshot,
+    private val hasNewTabAction: () -> Boolean,
+    private val onSelectTab: (String) -> Unit,
+    private val onCloseTab: (String) -> Unit,
+    private val onNewTab: () -> Unit
 ) : View.AccessibilityDelegate() {
 
     private val nodeProvider = TerminalAccessibilityNodeProvider()
 
     private fun isAccessibilityEnabled(): Boolean {
-        val manager = view.context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+        val manager =
+            view.context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
         return manager?.isEnabled == true
     }
 
@@ -49,110 +73,202 @@ class TerminalAccessibilityDelegate(
     }
 
     /**
-     * 为终端的每一行创建虚拟无障碍节点
+     * 为终端的每一行和顶部标签栏创建虚拟无障碍节点
      */
     private inner class TerminalAccessibilityNodeProvider : AccessibilityNodeProvider() {
 
-        // 常量定义（内部类不能有companion object）
         private val HOST_VIEW_ID = -1
-        private val VIRTUAL_NODE_ID_BASE = 1000
-        
-        // 跟踪当前的无障碍焦点
+        private val TAB_NODE_ID_BASE = 1_000
+        private val TAB_CLOSE_NODE_ID_BASE = 10_000
+        private val TAB_NEW_NODE_ID = 20_000
+        private val LINE_NODE_ID_BASE = 100_000
+
         private var currentAccessibilityFocusedVirtualViewId: Int = -1
 
         override fun createAccessibilityNodeInfo(virtualViewId: Int): AccessibilityNodeInfo? {
-            val emulator = getEmulator() ?: return null
-            
             return when (virtualViewId) {
                 HOST_VIEW_ID -> createHostNodeInfo()
-                else -> createVirtualNodeInfo(virtualViewId, emulator)
+                TAB_NEW_NODE_ID -> createNewTabNodeInfo()
+                else -> createVirtualNodeInfo(virtualViewId)
             }
         }
 
-        /**
-         * 创建主视图的无障碍节点信息
-         */
         private fun createHostNodeInfo(): AccessibilityNodeInfo {
             val info = AccessibilityNodeInfo.obtain(view)
             view.onInitializeAccessibilityNodeInfo(info)
-            
+
             info.className = CanvasTerminalView::class.java.name
-            
-            // 关键：让主视图完全不可访问，只作为虚拟节点的容器
-            // 不设置 contentDescription，避免被选中
             info.isFocusable = false
             info.isAccessibilityFocused = false
             info.isClickable = false
             info.isLongClickable = false
             info.isEnabled = true
-            
-            // 添加所有可见行作为子节点
+
+            val tabs = getTabs()
+            tabs.forEachIndexed { index, tab ->
+                info.addChild(view, tabNodeId(index))
+                if (tab.canClose) {
+                    info.addChild(view, tabCloseNodeId(index))
+                }
+            }
+            if (hasNewTabAction()) {
+                info.addChild(view, TAB_NEW_NODE_ID)
+            }
+
             val emulator = getEmulator()
             if (emulator != null) {
                 val screenContent = emulator.getScreenContent()
                 val visibleLines = screenContent.size
-                
                 for (i in 0 until visibleLines) {
-                    info.addChild(view, VIRTUAL_NODE_ID_BASE + i)
+                    info.addChild(view, lineNodeId(i))
                 }
             }
-            
+
             return info
         }
 
-        /**
-         * 创建单行文本的虚拟无障碍节点
-         */
-        private fun createVirtualNodeInfo(
-            virtualViewId: Int,
-            emulator: AnsiTerminalEmulator
-        ): AccessibilityNodeInfo? {
-            val lineIndex = virtualViewId - VIRTUAL_NODE_ID_BASE
+        private fun createVirtualNodeInfo(virtualViewId: Int): AccessibilityNodeInfo? {
+            if (virtualViewId in TAB_NODE_ID_BASE until TAB_CLOSE_NODE_ID_BASE) {
+                return createTabNodeInfo(virtualViewId - TAB_NODE_ID_BASE)
+            }
+
+            if (virtualViewId in TAB_CLOSE_NODE_ID_BASE until TAB_NEW_NODE_ID) {
+                return createTabCloseNodeInfo(virtualViewId - TAB_CLOSE_NODE_ID_BASE)
+            }
+
+            val emulator = getEmulator() ?: return null
+            val lineIndex = virtualViewId - LINE_NODE_ID_BASE
             val screenContent = emulator.getScreenContent()
-            
             if (lineIndex < 0 || lineIndex >= screenContent.size) {
                 return null
             }
-            
+
             val info = AccessibilityNodeInfo.obtain(view, virtualViewId)
             info.setParent(view)
             info.className = "android.widget.TextView"
             info.packageName = view.context.packageName
-            
-            // 获取该行的文本内容
+
             val lineContent = getLineText(screenContent[lineIndex])
             info.text = lineContent
-            info.contentDescription = "第${lineIndex + 1}行: $lineContent"
-            
-            // 设置节点的屏幕位置
+            info.contentDescription =
+                view.context.getString(
+                    R.string.terminal_accessibility_line,
+                    lineIndex + 1,
+                    lineContent
+                )
+
             val bounds = getLineBounds(lineIndex)
             info.setBoundsInParent(bounds)
-            
-            val screenBounds = Rect(bounds)
-            val location = IntArray(2)
-            view.getLocationOnScreen(location)
-            screenBounds.offset(location[0], location[1])
-            info.setBoundsInScreen(screenBounds)
-            
-            // 只有在视图可见范围内的行才标记为可见
-            val isVisible = bounds.top >= 0 && bounds.top < view.height
-            info.isVisibleToUser = isVisible
+            info.setBoundsInScreen(parentToScreenRect(bounds))
+
+            info.isVisibleToUser = bounds.top >= 0 && bounds.top < view.height
             info.isEnabled = true
             info.isFocusable = true
-            
-            // 设置当前是否有无障碍焦点
-            info.isAccessibilityFocused = (virtualViewId == currentAccessibilityFocusedVirtualViewId)
-            
-            // 支持的操作
+            info.isAccessibilityFocused =
+                virtualViewId == currentAccessibilityFocusedVirtualViewId
             info.addAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
             info.addAction(AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS)
-            
             return info
         }
 
-        /**
-         * 将TerminalChar数组转换为可读文本
-         */
+        private fun createTabNodeInfo(tabIndex: Int): AccessibilityNodeInfo? {
+            val tab = getTabs().getOrNull(tabIndex) ?: return null
+            val snapshotNode = getTabSnapshot().nodes.firstOrNull { it.tabId == tab.id }
+            val bounds = snapshotNode?.tabRect?.toRoundedRect() ?: fallbackTabBounds(tabIndex)
+            val tabTitle =
+                tab.title.ifBlank { view.context.getString(R.string.unknown_session) }
+            val isCurrent = getCurrentTabId() == tab.id
+
+            return AccessibilityNodeInfo.obtain(view, tabNodeId(tabIndex)).apply {
+                setParent(view)
+                className = "android.widget.Button"
+                packageName = view.context.packageName
+                contentDescription =
+                    view.context.getString(
+                        if (isCurrent) {
+                            R.string.terminal_accessibility_current_session_tab
+                        } else {
+                            R.string.terminal_accessibility_session_tab
+                        },
+                        tabTitle
+                    )
+                setBoundsInParent(bounds)
+                setBoundsInScreen(parentToScreenRect(bounds))
+                isVisibleToUser = !bounds.isEmpty
+                isEnabled = true
+                isFocusable = true
+                isClickable = true
+                isSelected = isCurrent
+                isAccessibilityFocused =
+                    tabNodeId(tabIndex) == currentAccessibilityFocusedVirtualViewId
+                addAction(AccessibilityNodeInfo.ACTION_CLICK)
+                addAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
+                addAction(AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS)
+            }
+        }
+
+        private fun createTabCloseNodeInfo(tabIndex: Int): AccessibilityNodeInfo? {
+            val tab = getTabs().getOrNull(tabIndex) ?: return null
+            if (!tab.canClose) {
+                return null
+            }
+
+            val snapshotNode = getTabSnapshot().nodes.firstOrNull { it.tabId == tab.id }
+            val bounds =
+                snapshotNode?.closeRect?.toRoundedRect()
+                    ?: fallbackCloseBounds(fallbackTabBounds(tabIndex))
+            val tabTitle =
+                tab.title.ifBlank { view.context.getString(R.string.unknown_session) }
+
+            return AccessibilityNodeInfo.obtain(view, tabCloseNodeId(tabIndex)).apply {
+                setParent(view)
+                className = "android.widget.Button"
+                packageName = view.context.packageName
+                contentDescription =
+                    view.context.getString(
+                        R.string.terminal_accessibility_close_session_tab,
+                        tabTitle
+                    )
+                setBoundsInParent(bounds)
+                setBoundsInScreen(parentToScreenRect(bounds))
+                isVisibleToUser = !bounds.isEmpty
+                isEnabled = true
+                isFocusable = true
+                isClickable = true
+                isAccessibilityFocused =
+                    tabCloseNodeId(tabIndex) == currentAccessibilityFocusedVirtualViewId
+                addAction(AccessibilityNodeInfo.ACTION_CLICK)
+                addAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
+                addAction(AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS)
+            }
+        }
+
+        private fun createNewTabNodeInfo(): AccessibilityNodeInfo {
+            val bounds =
+                getTabSnapshot().addButtonRect
+                    .takeUnless { it.isEmpty }
+                    ?.toRoundedRect()
+                    ?: fallbackNewTabBounds()
+
+            return AccessibilityNodeInfo.obtain(view, TAB_NEW_NODE_ID).apply {
+                setParent(view)
+                className = "android.widget.Button"
+                packageName = view.context.packageName
+                contentDescription = view.context.getString(R.string.new_session)
+                setBoundsInParent(bounds)
+                setBoundsInScreen(parentToScreenRect(bounds))
+                isVisibleToUser = !bounds.isEmpty
+                isEnabled = true
+                isFocusable = true
+                isClickable = true
+                isAccessibilityFocused =
+                    TAB_NEW_NODE_ID == currentAccessibilityFocusedVirtualViewId
+                addAction(AccessibilityNodeInfo.ACTION_CLICK)
+                addAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
+                addAction(AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS)
+            }
+        }
+
         private fun getLineText(line: Array<TerminalChar>): String {
             val sb = StringBuilder()
             for (terminalChar in line) {
@@ -162,36 +278,23 @@ class TerminalAccessibilityDelegate(
                     sb.append(' ')
                 }
             }
-            // 移除尾部空格
             return sb.toString().trimEnd()
         }
 
-        /**
-         * 计算某一行在屏幕上的边界
-         * 考虑滚动偏移，与终端渲染保持一致
-         */
         private fun getLineBounds(lineIndex: Int): Rect {
             val emulator = getEmulator()
             val metrics = getTextMetrics()
             val charHeight = metrics.charHeight
             val scrollOffset = getScrollOffsetY()
             val contentTop = getContentTop()
-            
-            // lineIndex 是相对于屏幕内容的索引
-            // 需要转换为绝对行号（包括历史记录）
             val historySize = emulator?.getHistorySize() ?: 0
             val absoluteRow = historySize + lineIndex
-            
-            // 计算实际显示位置（与渲染逻辑一致）
             val exactY = contentTop + absoluteRow * charHeight - scrollOffset
-            val top = exactY.toInt()
-            val bottom = (exactY + charHeight).toInt()
-            
             return Rect(
                 0,
-                top,
+                exactY.toInt(),
                 view.width,
-                bottom
+                (exactY + charHeight).toInt()
             )
         }
 
@@ -201,28 +304,70 @@ class TerminalAccessibilityDelegate(
             arguments: Bundle?
         ): Boolean {
             when (action) {
+                AccessibilityNodeInfo.ACTION_CLICK -> {
+                    when {
+                        virtualViewId == TAB_NEW_NODE_ID -> {
+                            onNewTab()
+                            sendEventForVirtualView(
+                                virtualViewId,
+                                AccessibilityEvent.TYPE_VIEW_CLICKED
+                            )
+                            return true
+                        }
+                        virtualViewId in TAB_NODE_ID_BASE until TAB_CLOSE_NODE_ID_BASE -> {
+                            val tabId = getTabs().getOrNull(virtualViewId - TAB_NODE_ID_BASE)?.id
+                                ?: return false
+                            onSelectTab(tabId)
+                            sendEventForVirtualView(
+                                virtualViewId,
+                                AccessibilityEvent.TYPE_VIEW_CLICKED
+                            )
+                            return true
+                        }
+                        virtualViewId in TAB_CLOSE_NODE_ID_BASE until TAB_NEW_NODE_ID -> {
+                            val tabId =
+                                getTabs().getOrNull(virtualViewId - TAB_CLOSE_NODE_ID_BASE)?.id
+                                    ?: return false
+                            if (virtualViewId == currentAccessibilityFocusedVirtualViewId) {
+                                currentAccessibilityFocusedVirtualViewId = -1
+                            }
+                            onCloseTab(tabId)
+                            sendEventForVirtualView(
+                                virtualViewId,
+                                AccessibilityEvent.TYPE_VIEW_CLICKED
+                            )
+                            return true
+                        }
+                    }
+                }
                 AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS -> {
                     if (virtualViewId == HOST_VIEW_ID) {
-                        // 不允许主视图获得焦点
                         return false
                     }
-                    
-                    // 清除旧焦点
+
                     if (currentAccessibilityFocusedVirtualViewId != -1) {
                         val oldFocusedId = currentAccessibilityFocusedVirtualViewId
                         currentAccessibilityFocusedVirtualViewId = -1
-                        sendEventForVirtualView(oldFocusedId, AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED)
+                        sendEventForVirtualView(
+                            oldFocusedId,
+                            AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED
+                        )
                     }
-                    
-                    // 设置新焦点
+
                     currentAccessibilityFocusedVirtualViewId = virtualViewId
-                    sendEventForVirtualView(virtualViewId, AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED)
+                    sendEventForVirtualView(
+                        virtualViewId,
+                        AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
+                    )
                     return true
                 }
                 AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS -> {
                     if (virtualViewId == currentAccessibilityFocusedVirtualViewId) {
                         currentAccessibilityFocusedVirtualViewId = -1
-                        sendEventForVirtualView(virtualViewId, AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED)
+                        sendEventForVirtualView(
+                            virtualViewId,
+                            AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED
+                        )
                         return true
                     }
                     return false
@@ -231,9 +376,6 @@ class TerminalAccessibilityDelegate(
             return false
         }
 
-        /**
-         * 为虚拟视图发送无障碍事件
-         */
         private fun sendEventForVirtualView(virtualViewId: Int, eventType: Int) {
             if (!isAccessibilityEnabled()) {
                 return
@@ -241,75 +383,92 @@ class TerminalAccessibilityDelegate(
 
             val event = AccessibilityEvent.obtain(eventType)
             event.packageName = view.context.packageName
-            event.className = "android.widget.TextView"
-            
-            // 设置事件源
+            event.className =
+                if (
+                    virtualViewId == TAB_NEW_NODE_ID ||
+                        virtualViewId in TAB_NODE_ID_BASE until TAB_NEW_NODE_ID
+                ) {
+                    "android.widget.Button"
+                } else {
+                    "android.widget.TextView"
+                }
             event.setSource(view, virtualViewId)
-            
+
             try {
                 view.parent?.requestSendAccessibilityEvent(view, event)
             } catch (_: IllegalStateException) {
             }
         }
-        
-        /**
-         * 查找当前焦点
-         */
+
         override fun findFocus(focus: Int): AccessibilityNodeInfo? {
-            if (focus == AccessibilityNodeInfo.FOCUS_ACCESSIBILITY) {
-                if (currentAccessibilityFocusedVirtualViewId != -1) {
-                    return createAccessibilityNodeInfo(currentAccessibilityFocusedVirtualViewId)
-                }
+            if (
+                focus == AccessibilityNodeInfo.FOCUS_ACCESSIBILITY &&
+                    currentAccessibilityFocusedVirtualViewId != -1
+            ) {
+                return createAccessibilityNodeInfo(currentAccessibilityFocusedVirtualViewId)
             }
             return null
         }
-        
-        /**
-         * 根据触摸位置找到对应的虚拟节点（用于触摸探索）
-         */
+
         override fun findAccessibilityNodeInfosByText(
             text: String?,
             virtualViewId: Int
         ): List<AccessibilityNodeInfo>? {
-            // 这个方法虽然名字是findByText，但也会被触摸探索调用
             return null
         }
-        
-        /**
-         * 根据坐标查找虚拟节点ID（支持触摸探索）
-         * 考虑滚动偏移，与CanvasTerminalView.screenToTerminalCoords保持一致
-         */
+
         fun findVirtualViewAt(x: Float, y: Float): Int {
+            val contentTop = getContentTop()
+            if (y in 0f..contentTop) {
+                val snapshot = getTabSnapshot()
+                val newTabRect =
+                    snapshot.addButtonRect.takeUnless { it.isEmpty }
+                        ?: RectF(fallbackNewTabBounds())
+                if (hasNewTabAction() && newTabRect.contains(x, y)) {
+                    return TAB_NEW_NODE_ID
+                }
+
+                val tabs = getTabs()
+                for (index in tabs.indices.reversed()) {
+                    val tab = tabs[index]
+                    val node = snapshot.nodes.firstOrNull { it.tabId == tab.id }
+                    val closeRect =
+                        node?.closeRect
+                            ?: if (tab.canClose) {
+                                RectF(fallbackCloseBounds(fallbackTabBounds(index)))
+                            } else {
+                                null
+                            }
+                    if (closeRect?.contains(x, y) == true) {
+                        return tabCloseNodeId(index)
+                    }
+                    val tabRect = node?.tabRect ?: RectF(fallbackTabBounds(index))
+                    if (tabRect.contains(x, y)) {
+                        return tabNodeId(index)
+                    }
+                }
+            }
+
             val emulator = getEmulator() ?: return HOST_VIEW_ID
             val metrics = getTextMetrics()
             val charHeight = metrics.charHeight
             val scrollOffset = getScrollOffsetY()
-            val contentTop = getContentTop()
-
             if (y < contentTop) {
                 return HOST_VIEW_ID
             }
+
             val localY = y - contentTop
-             
-            // 计算点击位置对应的行号（考虑滚动偏移）
             val absoluteRow = ((localY + scrollOffset) / charHeight).toInt()
-             
-            // 转换为屏幕可见区域内的相对行号
             val screenContent = emulator.getScreenContent()
             val historySize = emulator.getHistorySize()
             val lineIndex = absoluteRow - historySize
-            
-            // 检查是否在屏幕可见范围内
-            if (lineIndex in 0 until screenContent.size) {
-                return VIRTUAL_NODE_ID_BASE + lineIndex
+            return if (lineIndex in 0 until screenContent.size) {
+                lineNodeId(lineIndex)
+            } else {
+                HOST_VIEW_ID
             }
-            
-            return HOST_VIEW_ID
         }
-        
-        /**
-         * 清除所有焦点
-         */
+
         fun clearAccessibilityFocus() {
             if (currentAccessibilityFocusedVirtualViewId != -1) {
                 performAction(
@@ -319,18 +478,72 @@ class TerminalAccessibilityDelegate(
                 )
             }
         }
+
+        private fun tabNodeId(index: Int): Int = TAB_NODE_ID_BASE + index
+
+        private fun tabCloseNodeId(index: Int): Int = TAB_CLOSE_NODE_ID_BASE + index
+
+        private fun lineNodeId(index: Int): Int = LINE_NODE_ID_BASE + index
+
+        private fun parentToScreenRect(bounds: Rect): Rect {
+            val screenBounds = Rect(bounds)
+            val location = IntArray(2)
+            view.getLocationOnScreen(location)
+            screenBounds.offset(location[0], location[1])
+            return screenBounds
+        }
+
+        private fun RectF.toRoundedRect(): Rect =
+            Rect(
+                left.roundToInt(),
+                top.roundToInt(),
+                right.roundToInt(),
+                bottom.roundToInt()
+            )
+
+        private fun fallbackTabBounds(tabIndex: Int): Rect {
+            val tabs = getTabs()
+            val width = view.width.coerceAtLeast(1)
+            val contentTop = getContentTop().roundToInt().coerceAtLeast(1)
+            if (tabs.isEmpty()) {
+                return Rect(0, 0, width, contentTop)
+            }
+
+            val hasAddButton = hasNewTabAction()
+            val addButtonWidth = if (hasAddButton) contentTop else 0
+            val rightEdge = (width - addButtonWidth).coerceAtLeast(1)
+            val slotWidth = (rightEdge.toFloat() / tabs.size).coerceAtLeast(1f)
+            val left = (slotWidth * tabIndex).roundToInt().coerceAtLeast(0)
+            val right =
+                if (tabIndex == tabs.lastIndex) {
+                    rightEdge
+                } else {
+                    (slotWidth * (tabIndex + 1)).roundToInt().coerceAtLeast(left + 1)
+                }
+            return Rect(left, 0, right, contentTop)
+        }
+
+        private fun fallbackCloseBounds(tabBounds: Rect): Rect {
+            val size = (tabBounds.height() * 0.55f).roundToInt().coerceAtLeast(1)
+            val right = tabBounds.right
+            val left = (right - size).coerceAtLeast(tabBounds.left)
+            val top = (tabBounds.centerY() - size / 2f).roundToInt().coerceAtLeast(tabBounds.top)
+            val bottom = (top + size).coerceAtMost(tabBounds.bottom)
+            return Rect(left, top, right, bottom)
+        }
+
+        private fun fallbackNewTabBounds(): Rect {
+            val contentTop = getContentTop().roundToInt().coerceAtLeast(1)
+            val width = view.width.coerceAtLeast(contentTop)
+            val left = (width - contentTop).coerceAtLeast(0)
+            return Rect(left, 0, width, contentTop)
+        }
     }
-    
-    /**
-     * 根据坐标查找虚拟节点（暴露给View使用）
-     */
+
     fun findVirtualViewAt(x: Float, y: Float): Int {
         return nodeProvider.findVirtualViewAt(x, y)
     }
-    
-    /**
-     * 清除焦点
-     */
+
     fun clearAccessibilityFocus() {
         nodeProvider.clearAccessibilityFocus()
     }

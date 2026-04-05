@@ -228,4 +228,8 @@
     <string name="add_custom_source_title">添加自定义 %s 源</string>
     <string name="source_name_label">源名称</string>
     <string name="source_url_label">源地址</string>
+    <string name="terminal_accessibility_line">第%1$d行：%2$s</string>
+    <string name="terminal_accessibility_session_tab">会话“%1$s”</string>
+    <string name="terminal_accessibility_current_session_tab">当前会话“%1$s”</string>
+    <string name="terminal_accessibility_close_session_tab">关闭会话“%1$s”</string>
 </resources> 

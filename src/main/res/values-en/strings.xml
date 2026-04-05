@@ -228,4 +228,8 @@
     <string name="add_custom_source_title">Add Custom %s Source</string>
     <string name="source_name_label">Source Name</string>
     <string name="source_url_label">Source URL</string>
+    <string name="terminal_accessibility_line">Line %1$d: %2$s</string>
+    <string name="terminal_accessibility_session_tab">Session "%1$s"</string>
+    <string name="terminal_accessibility_current_session_tab">Current session "%1$s"</string>
+    <string name="terminal_accessibility_close_session_tab">Close session "%1$s"</string>
 </resources> 
