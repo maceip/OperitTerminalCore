@@ -21,8 +21,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.assistance.operit.terminal.TerminalManager
-import com.ai.assistance.operit.terminal.data.PackageManagerType
-import com.ai.assistance.operit.terminal.utils.SourceManager
 import com.ai.assistance.operit.terminal.utils.SSHConfigManager
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -64,7 +62,7 @@ fun SetupScreen(
     onSetup: (List<String>) -> Unit
 ) {
     val context = LocalContext.current
-    val sourceManager = remember { SourceManager(context) }
+    // Source manager removed — using defaults for Rust mirror
     val sshConfigManager = remember { SSHConfigManager(context) }
     
     // 检查SSH是否启用
@@ -373,11 +371,7 @@ fun SetupScreen(
                             if (selectedPackages[pkg.id] == true && packageStatus[pkg.id] != InstallStatus.INSTALLED) {
                                 // 根据分类和包ID判断包管理器
                                 if (pkg.id == "rust") {
-                                    // 获取当前选择的Rust镜像源
-                                    val rustSource = sourceManager.getSelectedSource(PackageManagerType.RUST)
-                                    val rustEnvCommand = sourceManager.getRustSourceEnvCommand(rustSource)
-                                    // 添加环境变量设置和安装命令
-                                    selectedCustomCommands.add("$rustEnvCommand && curl -v --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y")
+                                    selectedCustomCommands.add("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y")
                                 } else if (pkg.id == "uv" || pkg.id == "nodejs") {
                                     selectedCustomCommands.add(pkg.command)
                                 } else if (category.id == "nodejs" && pkg.id != "nodejs") {

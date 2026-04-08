@@ -71,7 +71,7 @@
     
     <!-- Storage Management Section -->
     <string name="storage_management_title">Storage Management</string>
-    <string name="ubuntu_environment_size">Ubuntu Environment Size: %s</string>
+    <string name="ubuntu_environment_size">Environment Size: %s</string>
     <string name="refresh_size_calculating">Calculating…</string>
     <string name="refresh_size">Refresh</string>
     <string name="reset_environment">Reset</string>
@@ -85,11 +85,11 @@
     
     <!-- Reset Environment Dialog -->
     <string name="reset_dialog_title">⚠️ Dangerous Operation</string>
-    <string name="reset_dialog_description">This operation will completely delete the Ubuntu virtual environment, including:</string>
+    <string name="reset_dialog_description">This operation will completely reset the terminal environment, including:</string>
     <string name="reset_dialog_item1">• All installed software packages</string>
     <string name="reset_dialog_item2">• User data and configuration files</string>
     <string name="reset_dialog_item3">• System files and environment settings</string>
-    <string name="reset_dialog_warning">After the operation, the Ubuntu environment will need to be reinitialized, which may take several minutes.</string>
+    <string name="reset_dialog_warning">After the operation, the environment will need to be reinitialized.</string>
     <string name="reset_dialog_ftp_warning">The FTP server will also be stopped. Are you sure you want to continue?</string>
     <string name="reset_confirm">Confirm Reset</string>
     

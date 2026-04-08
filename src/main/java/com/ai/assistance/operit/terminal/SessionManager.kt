@@ -32,7 +32,7 @@ class SessionManager(private val terminalManager: TerminalManager) {
         _state.update { currentState ->
             val sessionCount = currentState.sessions.size + 1
             val defaultTitle = when (terminalType) {
-                TerminalType.LOCAL -> "Ubuntu $sessionCount"
+                TerminalType.LOCAL -> "Shell $sessionCount"
                 TerminalType.SSH -> "SSH $sessionCount"
                 else -> "Terminal $sessionCount"
             }

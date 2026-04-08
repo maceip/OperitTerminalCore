@@ -2,7 +2,6 @@ package com.ai.assistance.operit.terminal.provider.type
 
 import com.ai.assistance.operit.terminal.Pty
 import com.ai.assistance.operit.terminal.TerminalSession
-import com.ai.assistance.operit.terminal.provider.filesystem.FileSystemProvider
 
 data class HiddenExecResult(
     val output: String,
@@ -65,23 +64,13 @@ interface TerminalProvider {
     suspend fun closeSession(sessionId: String)
 
     /**
-     * 在不可见的执行上下文中执行命令。
-     *
-     * 本地终端会复用后台 shell，避免每次命令重新 login/proot。
-     * SSH 终端可映射到 exec channel。
+     * Execute a command in a hidden (non-interactive) context.
      */
     suspend fun executeHiddenCommand(
         command: String,
         executorKey: String = "default",
         timeoutMs: Long = 120000L
     ): HiddenExecResult
-    
-    /**
-     * 获取文件系统提供者
-     * 
-     * @return 对应的文件系统提供者
-     */
-    fun getFileSystemProvider(): FileSystemProvider
     
     /**
      * 获取工作目录
@@ -103,7 +92,7 @@ interface TerminalProvider {
  */
 enum class TerminalType {
     /**
-     * 本地终端（proot + Ubuntu）
+     * Local native shell
      */
     LOCAL,
     
