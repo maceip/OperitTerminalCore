@@ -1,0 +1,211 @@
+package com.ai.assistance.operit.terminal
+
+import android.content.Context
+import android.util.Log
+import com.ai.assistance.operit.terminal.data.TerminalSessionData
+import com.ai.assistance.operit.terminal.provider.type.LocalTerminalProvider
+import com.ai.assistance.operit.terminal.provider.type.TerminalType
+import com.ai.assistance.operit.terminal.view.domain.OutputProcessor
+import com.ai.assistance.operit.terminal.view.domain.ansi.AnsiTerminalEmulator
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.OutputStreamWriter
+
+/**
+ * Central coordinator for terminal sessions.
+ *
+ * Manages session lifecycle, I/O routing, and provides reactive state
+ * for the Compose UI layer.  This replaces the former proot-based
+ * TerminalManager with a direct native-shell implementation.
+ */
+class TerminalManager private constructor(private val context: Context) {
+
+    companion object {
+        private const val TAG = "TerminalManager"
+
+        @Volatile
+        private var instance: TerminalManager? = null
+
+        fun getInstance(context: Context): TerminalManager =
+            instance ?: synchronized(this) {
+                instance ?: TerminalManager(context.applicationContext).also { instance = it }
+            }
+    }
+
+    // ---- public coroutine scope (used by TerminalEnv / TerminalService) ----
+    val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // ---- reactive state ----
+    private val _sessions = MutableStateFlow<List<TerminalSessionData>>(emptyList())
+    val sessions: StateFlow<List<TerminalSessionData>> = _sessions.asStateFlow()
+
+    private val _currentSessionId = MutableStateFlow<String?>(null)
+    val currentSessionId: StateFlow<String?> = _currentSessionId.asStateFlow()
+
+    private val _currentDirectory = MutableStateFlow("$ ")
+    val currentDirectory: StateFlow<String> = _currentDirectory.asStateFlow()
+
+    private val _isFullscreen = MutableStateFlow(false)
+    val isFullscreen: StateFlow<Boolean> = _isFullscreen.asStateFlow()
+
+    private val _terminalEmulator = MutableStateFlow(AnsiTerminalEmulator(screenWidth = 80, screenHeight = 24))
+    val terminalEmulator: StateFlow<AnsiTerminalEmulator> = _terminalEmulator.asStateFlow()
+
+    /** Full terminal state (used by TerminalScreen). */
+    val terminalState: StateFlow<com.ai.assistance.operit.terminal.data.TerminalState>
+        get() = sessionManager.state
+
+    // ---- AIDL events ----
+    private val _commandExecutionEvents = MutableSharedFlow<CommandExecutionEvent>(extraBufferCapacity = 64)
+    val commandExecutionEvents: SharedFlow<CommandExecutionEvent> = _commandExecutionEvents.asSharedFlow()
+
+    private val _directoryChangeEvents = MutableSharedFlow<SessionDirectoryEvent>(extraBufferCapacity = 16)
+    val directoryChangeEvents: SharedFlow<SessionDirectoryEvent> = _directoryChangeEvents.asSharedFlow()
+
+    // ---- internal bookkeeping ----
+    private val sessionManager = SessionManager(this)
+    private val localProvider = LocalTerminalProvider(context)
+    private val outputProcessor = OutputProcessor(
+        onCommandExecutionEvent = { event -> coroutineScope.launch { _commandExecutionEvents.emit(event) } },
+        onDirectoryChangeEvent = { event ->
+            coroutineScope.launch {
+                _directoryChangeEvents.emit(event)
+                _currentDirectory.value = event.currentDirectory
+            }
+        },
+        onCommandCompleted = { /* no-op for now */ }
+    )
+
+    private val scrollOffsets = mutableMapOf<String, Float>()
+
+    init {
+        // Bootstrap the native environment on first use.
+        coroutineScope.launch(Dispatchers.IO) {
+            TerminalBootstrap.ensureEnvironment(context)
+        }
+        // Mirror SessionManager state into our StateFlows.
+        coroutineScope.launch {
+            sessionManager.state.collect { state ->
+                _sessions.value = state.sessions
+                _currentSessionId.value = state.currentSessionId
+                val current = state.currentSession
+                if (current != null) {
+                    _terminalEmulator.value = current.ansiParser
+                }
+            }
+        }
+    }
+
+    // ---- Session lifecycle ----
+
+    suspend fun createNewSession(): TerminalSessionData {
+        val sessionData = sessionManager.createNewSession(terminalType = TerminalType.LOCAL)
+
+        return withContext(Dispatchers.IO) {
+            val result = localProvider.startSession(sessionData.id)
+            result.getOrThrow().let { (terminalSession, pty) ->
+                val writer = OutputStreamWriter(terminalSession.stdin, Charsets.UTF_8)
+                sessionManager.updateSession(sessionData.id) { s ->
+                    s.copy(
+                        terminalSession = terminalSession,
+                        pty = pty,
+                        sessionWriter = writer
+                    )
+                }
+                // Start reading output from the PTY
+                val readJob = startOutputReader(sessionData.id, terminalSession)
+                sessionManager.updateSession(sessionData.id) { s -> s.copy(readJob = readJob) }
+            }
+            sessionManager.getSession(sessionData.id) ?: sessionData
+        }
+    }
+
+    fun switchToSession(sessionId: String) {
+        sessionManager.switchToSession(sessionId)
+    }
+
+    fun closeSession(sessionId: String) {
+        sessionManager.closeSession(sessionId)
+    }
+
+    internal fun closeTerminalSession(sessionId: String) {
+        coroutineScope.launch(Dispatchers.IO) {
+            localProvider.closeSession(sessionId)
+        }
+    }
+
+    internal fun onSessionClosed(sessionId: String) {
+        scrollOffsets.remove(sessionId)
+    }
+
+    // ---- I/O ----
+
+    suspend fun sendCommand(command: String): String {
+        val session = sessionManager.getCurrentSession() ?: return ""
+        val writer = session.sessionWriter ?: return ""
+        withContext(Dispatchers.IO) {
+            writer.write(command + "\n")
+            writer.flush()
+        }
+        return command
+    }
+
+    fun sendInput(input: String) {
+        val session = sessionManager.getCurrentSession() ?: return
+        val writer = session.sessionWriter ?: return
+        coroutineScope.launch(Dispatchers.IO) {
+            writer.write(input + "\n")
+            writer.flush()
+        }
+    }
+
+    fun sendInterruptSignal() {
+        val session = sessionManager.getCurrentSession() ?: return
+        val writer = session.sessionWriter ?: return
+        coroutineScope.launch(Dispatchers.IO) {
+            // Send Ctrl-C (ETX, 0x03)
+            writer.write("\u0003")
+            writer.flush()
+        }
+    }
+
+    // ---- Scroll offsets ----
+
+    fun saveScrollOffset(sessionId: String, offset: Float) {
+        scrollOffsets[sessionId] = offset
+    }
+
+    fun getScrollOffset(sessionId: String): Float = scrollOffsets[sessionId] ?: 0f
+
+    // ---- Output reader ----
+
+    private fun startOutputReader(sessionId: String, terminalSession: TerminalSession): kotlinx.coroutines.Job {
+        return coroutineScope.launch(Dispatchers.IO) {
+            val buffer = ByteArray(4096)
+            try {
+                while (true) {
+                    val count = terminalSession.stdout.read(buffer)
+                    if (count < 0) break
+                    if (count > 0) {
+                        val text = String(buffer, 0, count, Charsets.UTF_8)
+                        outputProcessor.processOutput(sessionId, text, sessionManager)
+                    }
+                }
+            } catch (e: Exception) {
+                if (e !is java.io.IOException) {
+                    Log.e(TAG, "Output reader error for session $sessionId", e)
+                }
+            }
+            Log.d(TAG, "Output reader finished for session $sessionId")
+        }
+    }
+}
