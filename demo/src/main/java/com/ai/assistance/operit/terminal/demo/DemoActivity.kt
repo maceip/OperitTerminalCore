@@ -99,7 +99,7 @@ private fun ComponentActivity.TerminalDemo() {
                     if (n > 0) {
                         val text = String(buf, 0, n, Charsets.UTF_8)
                         withContext(Dispatchers.Main) {
-                            emulator.processInput(text)
+                            emulator.parse(text)
                         }
                     }
                 }

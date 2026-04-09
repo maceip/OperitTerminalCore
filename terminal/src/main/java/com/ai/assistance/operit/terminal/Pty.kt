@@ -166,7 +166,7 @@ class PtyProcess(val pid: Int) : Process() {
     }
 
     // stdio is handled via the PTY master fd, not these streams.
-    override fun getErrorStream(): InputStream = InputStream.nullInputStream()
-    override fun getInputStream(): InputStream = InputStream.nullInputStream()
-    override fun getOutputStream(): OutputStream = OutputStream.nullOutputStream()
+    override fun getErrorStream(): InputStream = object : InputStream() { override fun read() = -1 }
+    override fun getInputStream(): InputStream = object : InputStream() { override fun read() = -1 }
+    override fun getOutputStream(): OutputStream = object : OutputStream() { override fun write(b: Int) {} }
 }
