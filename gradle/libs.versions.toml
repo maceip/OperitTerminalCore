@@ -1,7 +1,7 @@
 [versions]
-agp = "8.7.3"
-kotlin = "2.1.0"
-compose-bom = "2024.12.01"
+agp = "8.13.0"
+kotlin = "2.1.20"
+compose-bom = "2026.03.00"
 coroutines = "1.9.0"
 lifecycle = "2.8.7"
 navigation = "2.8.5"
