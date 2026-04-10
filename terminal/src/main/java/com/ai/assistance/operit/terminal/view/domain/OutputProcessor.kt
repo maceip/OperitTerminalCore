@@ -482,6 +482,7 @@ class OutputProcessor(
             // 发出命令执行过程事件
             onCommandExecutionEvent(CommandExecutionEvent(
                 commandId = currentItem.id,
+                command = currentItem.command,
                 sessionId = sessionId,
                 outputChunk = cleanLine,
                 isCompleted = false
@@ -559,13 +560,17 @@ class OutputProcessor(
             // 发出命令完成事件
             onCommandExecutionEvent(CommandExecutionEvent(
                 commandId = lastExecutingItem.id,
+                command = lastExecutingItem.command,
                 sessionId = sessionId,
                 outputChunk = finalOutput,
-                isCompleted = true
+                isCompleted = true,
+                exitCode = inferExitCode(finalOutput),
+                durationMs = session.currentCommandStartedAtMs?.let { System.currentTimeMillis() - it }
             ))
 
             // Clear the reference since command is no longer executing
             session.currentExecutingCommand = null
+            session.currentCommandStartedAtMs = null
             session.currentCommandOutput.clear()
             
             // 通知命令已完成，可以处理下一个队列命令
@@ -616,13 +621,17 @@ class OutputProcessor(
             onCommandExecutionEvent(
                 CommandExecutionEvent(
                     commandId = lastExecutingItem.id,
+                    command = lastExecutingItem.command,
                     sessionId = sessionId,
                     outputChunk = finalOutput,
-                    isCompleted = true
+                    isCompleted = true,
+                    exitCode = inferExitCode(finalOutput),
+                    durationMs = session.currentCommandStartedAtMs?.let { System.currentTimeMillis() - it }
                 )
             )
 
             session.currentExecutingCommand = null
+            session.currentCommandStartedAtMs = null
         }
 
         session.currentCommandOutput.clear()
@@ -707,6 +716,21 @@ class OutputProcessor(
         session.ansiParser.parse(welcomeMessage)
         
         Log.d(TAG, "Screen cleared and welcome message sent to Canvas for session $sessionId")
+    }
+
+    private fun inferExitCode(output: String): Int {
+        val lowered = output.lowercase()
+        return if (
+            "error" in lowered ||
+            "failed" in lowered ||
+            "exception" in lowered ||
+            "not found" in lowered ||
+            "traceback" in lowered
+        ) {
+            1
+        } else {
+            0
+        }
     }
 
 }

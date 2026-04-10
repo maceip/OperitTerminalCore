@@ -97,6 +97,7 @@ data class TerminalSessionData(
     val isFullscreen: Boolean = false,
     @Transient val ansiParser: AnsiTerminalEmulator = AnsiTerminalEmulator(),
     @Transient var currentExecutingCommand: CommandHistoryItem? = null,
+    @Transient var currentCommandStartedAtMs: Long? = null,
     @Transient var currentOutputLineCount: Int = 0,
     @Transient val commandQueue: MutableList<QueuedCommand> = mutableListOf(),
     @Transient val commandMutex: Mutex = Mutex(),

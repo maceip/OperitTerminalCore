@@ -1,5 +1,8 @@
 package com.ai.assistance.operit.terminal.service
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.Build
@@ -23,6 +26,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
 class TerminalService : Service() {
+    companion object {
+        private const val CHANNEL_ID = "terminal-runtime"
+        private const val NOTIFICATION_ID = 4102
+    }
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.Main + job)
@@ -77,6 +84,7 @@ class TerminalService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        startForegroundCompat()
         terminalManager = TerminalManager.getInstance(applicationContext)
         
         // 监听命令执行事件
@@ -133,4 +141,24 @@ class TerminalService : Service() {
         }
         callbacks.finishBroadcast()
     }
-} 
+
+    private fun startForegroundCompat() {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "Terminal runtime",
+                    NotificationManager.IMPORTANCE_LOW
+                )
+            )
+        }
+        val notification = Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle("Cory terminal running")
+            .setContentText("Keeping agent and shell sessions alive")
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setOngoing(true)
+            .build()
+        startForeground(NOTIFICATION_ID, notification)
+    }
+}

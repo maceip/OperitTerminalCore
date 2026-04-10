@@ -44,8 +44,8 @@ import androidx.navigation.compose.rememberNavController
 import com.ai.assistance.operit.terminal.TerminalEnv
 import com.ai.assistance.operit.terminal.TerminalManager
 import com.ai.assistance.operit.terminal.ui.SetupScreen
-import com.ai.assistance.operit.terminal.ui.TerminalHome
 import com.ai.assistance.operit.terminal.ui.SettingsScreen
+import com.ai.assistance.operit.terminal.ui.CoryScaffold
 import com.ai.assistance.operit.terminal.utils.UpdateChecker
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -101,11 +101,8 @@ fun TerminalScreen(
     ) {
         
         composable(TerminalRoutes.TERMINAL_HOME_ROUTE) {
-            TerminalHome(
+            CoryScaffold(
                 env = env,
-                onNavigateToSetup = {
-                    navController.navigate(TerminalRoutes.SETUP_ROUTE)
-                },
                 onNavigateToSettings = {
                     navController.navigate(TerminalRoutes.SETTINGS_ROUTE)
                 }

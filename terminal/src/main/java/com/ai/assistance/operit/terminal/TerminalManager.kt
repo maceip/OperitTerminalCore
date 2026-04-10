@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.OutputStreamWriter
+import java.util.UUID
 
 /**
  * Central coordinator for terminal sessions.
@@ -70,6 +71,12 @@ class TerminalManager private constructor(private val context: Context) {
 
     private val _directoryChangeEvents = MutableSharedFlow<SessionDirectoryEvent>(extraBufferCapacity = 16)
     val directoryChangeEvents: SharedFlow<SessionDirectoryEvent> = _directoryChangeEvents.asSharedFlow()
+
+    private val _userInputEvents = MutableSharedFlow<UserInputEvent>(extraBufferCapacity = 64)
+    val userInputEvents: SharedFlow<UserInputEvent> = _userInputEvents.asSharedFlow()
+
+    private val _sessionOutputEvents = MutableSharedFlow<SessionOutputEvent>(extraBufferCapacity = 128)
+    val sessionOutputEvents: SharedFlow<SessionOutputEvent> = _sessionOutputEvents.asSharedFlow()
 
     // ---- internal bookkeeping ----
     private val sessionManager = SessionManager(this)
@@ -152,6 +159,22 @@ class TerminalManager private constructor(private val context: Context) {
     suspend fun sendCommand(command: String): String {
         val session = sessionManager.getCurrentSession() ?: return ""
         val writer = session.sessionWriter ?: return ""
+        val commandId = UUID.randomUUID().toString()
+        session.currentExecutingCommand = com.ai.assistance.operit.terminal.data.CommandHistoryItem(
+            id = commandId,
+            prompt = session.currentDirectory,
+            command = command,
+            output = "",
+            isExecuting = true
+        )
+        session.currentCommandStartedAtMs = System.currentTimeMillis()
+        _userInputEvents.tryEmit(
+            UserInputEvent(
+                sessionId = session.id,
+                text = command,
+                isCommand = true
+            )
+        )
         withContext(Dispatchers.IO) {
             writer.write(command + "\n")
             writer.flush()
@@ -162,6 +185,13 @@ class TerminalManager private constructor(private val context: Context) {
     fun sendInput(input: String) {
         val session = sessionManager.getCurrentSession() ?: return
         val writer = session.sessionWriter ?: return
+        _userInputEvents.tryEmit(
+            UserInputEvent(
+                sessionId = session.id,
+                text = input,
+                isCommand = false
+            )
+        )
         coroutineScope.launch(Dispatchers.IO) {
             writer.write(input + "\n")
             writer.flush()
@@ -198,6 +228,7 @@ class TerminalManager private constructor(private val context: Context) {
                     if (count > 0) {
                         val text = String(buffer, 0, count, Charsets.UTF_8)
                         outputProcessor.processOutput(sessionId, text, sessionManager)
+                        _sessionOutputEvents.tryEmit(SessionOutputEvent(sessionId = sessionId, chunk = text))
                     }
                 }
             } catch (e: Exception) {
