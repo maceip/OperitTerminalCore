@@ -28,13 +28,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
-private object SettingsTheme {
+object SettingsTheme {
     val backgroundColor = Color(0xFF11161C)
     val surfaceColor = Color(0xFF1B2530)
     val primaryColor = Color(0xFF5BA4FF)
-    val textColor = Color(0xFFD7E3F4)
-    val secondaryTextColor = Color(0xFF9FB3C8)
-    val dangerColor = Color(0xFFC45555)
+    val onSurfaceColor = Color(0xFFD7E3F4)
+    val onSurfaceVariant = Color(0xFF9FB3C8)
+    val errorColor = Color(0xFFC45555)
+    val textColor = onSurfaceColor
+    val secondaryTextColor = onSurfaceVariant
+    val dangerColor = errorColor
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
