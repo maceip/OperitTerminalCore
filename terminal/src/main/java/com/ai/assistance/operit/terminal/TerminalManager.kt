@@ -312,9 +312,11 @@ class TerminalManager private constructor(private val context: Context) {
             _commandExecutionEvents.tryEmit(
                 CommandExecutionEvent(
                     commandId = "exit",
+                    command = "",
                     sessionId = sessionId,
                     outputChunk = "Terminal exited with code $exitCode",
-                    isCompleted = true
+                    isCompleted = true,
+                    exitCode = exitCode
                 )
             )
         }
