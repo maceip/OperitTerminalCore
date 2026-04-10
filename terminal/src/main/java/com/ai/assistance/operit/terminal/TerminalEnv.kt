@@ -35,20 +35,33 @@ class TerminalEnv(
         command = newCommand
     }
 
+    /**
+     * Send input to the terminal.
+     *
+     * @param inputText the text to send
+     * @param isCommand true = newline-terminated command from input bar,
+     *                  false = newline-terminated interactive input (sudo prompt, y/n, etc.)
+     */
     fun onSendInput(inputText: String, isCommand: Boolean) {
-        // 允许空输入（用于交互式场景发送回车）
         if (isCommand) {
-            // 命令模式：也允许空命令（用于 SSH 等交互场景）
             terminalManager.coroutineScope.launch {
-                terminalManager.sendCommand(inputText)
-            }
-            if (inputText == command) {
-                command = ""
+                // [P1 fix] Only clear the prompt if the command was actually written.
+                val sent = terminalManager.sendCommand(inputText)
+                if (sent && inputText == command) {
+                    command = ""
+                }
             }
         } else {
-            // 输入模式：允许空输入（例如 ssh-keygen 直接回车使用默认路径）
             terminalManager.sendInput(inputText)
         }
+    }
+
+    /**
+     * [P0 fix] Send raw bytes to the PTY — no newline appended.
+     * Used by CanvasTerminalView for keystroke-level I/O.
+     */
+    fun onRawInput(data: String) {
+        terminalManager.sendRawInput(data)
     }
 
     fun onSetup(commands: List<String>) {
@@ -60,7 +73,6 @@ class TerminalEnv(
 
     fun onInterrupt() = terminalManager.sendInterruptSignal()
     fun onNewSession() {
-        // 在terminalManager的协程作用域中异步创建会话
         terminalManager.coroutineScope.launch {
             try {
                 terminalManager.createNewSession()
@@ -72,7 +84,7 @@ class TerminalEnv(
     }
     fun onSwitchSession(sessionId: String) = terminalManager.switchToSession(sessionId)
     fun onCloseSession(sessionId: String) = terminalManager.closeSession(sessionId)
-    
+
     fun saveScrollOffset(sessionId: String, scrollOffset: Float) = terminalManager.saveScrollOffset(sessionId, scrollOffset)
     fun getScrollOffset(sessionId: String): Float = terminalManager.getScrollOffset(sessionId)
 }
@@ -97,4 +109,4 @@ fun rememberTerminalEnv(terminalManager: TerminalManager, forceShowSetup: Boolea
             forceShowSetup = forceShowSetup
         )
     }
-} 
+}

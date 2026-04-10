@@ -108,6 +108,20 @@ class SessionManager(private val terminalManager: TerminalManager) {
     }
     
     /**
+     * Insert a fully-initialized session into state.
+     * Used by TerminalManager after the provider has successfully started.
+     */
+    fun insertSession(session: TerminalSessionData) {
+        _state.update { currentState ->
+            currentState.copy(
+                sessions = currentState.sessions + session,
+                currentSessionId = session.id
+            )
+        }
+        Log.d("SessionManager", "Inserted session: ${session.id}")
+    }
+
+    /**
      * 更新会话数据
      */
     fun updateSession(sessionId: String, updater: (TerminalSessionData) -> TerminalSessionData) {

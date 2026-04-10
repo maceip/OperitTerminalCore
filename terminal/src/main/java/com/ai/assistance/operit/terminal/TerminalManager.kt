@@ -3,6 +3,7 @@ package com.ai.assistance.operit.terminal
 import android.content.Context
 import android.util.Log
 import com.ai.assistance.operit.terminal.data.TerminalSessionData
+import com.ai.assistance.operit.terminal.data.SessionInitState
 import com.ai.assistance.operit.terminal.provider.type.LocalTerminalProvider
 import com.ai.assistance.operit.terminal.provider.type.TerminalType
 import com.ai.assistance.operit.terminal.view.domain.OutputProcessor
@@ -25,8 +26,7 @@ import java.util.UUID
  * Central coordinator for terminal sessions.
  *
  * Manages session lifecycle, I/O routing, and provides reactive state
- * for the Compose UI layer.  This replaces the former proot-based
- * TerminalManager with a direct native-shell implementation.
+ * for the Compose UI layer.
  */
 class TerminalManager private constructor(private val context: Context) {
 
@@ -44,6 +44,10 @@ class TerminalManager private constructor(private val context: Context) {
 
     // ---- public coroutine scope (used by TerminalEnv / TerminalService) ----
     val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // ---- bootstrap state ----
+    private val _bootstrapComplete = MutableStateFlow(false)
+    val bootstrapComplete: StateFlow<Boolean> = _bootstrapComplete.asStateFlow()
 
     // ---- reactive state ----
     private val _sessions = MutableStateFlow<List<TerminalSessionData>>(emptyList())
@@ -72,6 +76,7 @@ class TerminalManager private constructor(private val context: Context) {
     private val _directoryChangeEvents = MutableSharedFlow<SessionDirectoryEvent>(extraBufferCapacity = 16)
     val directoryChangeEvents: SharedFlow<SessionDirectoryEvent> = _directoryChangeEvents.asSharedFlow()
 
+    // Engineer additions: structured I/O events for the parsed UI layer
     private val _userInputEvents = MutableSharedFlow<UserInputEvent>(extraBufferCapacity = 64)
     val userInputEvents: SharedFlow<UserInputEvent> = _userInputEvents.asSharedFlow()
 
@@ -95,9 +100,15 @@ class TerminalManager private constructor(private val context: Context) {
     private val scrollOffsets = mutableMapOf<String, Float>()
 
     init {
-        // Bootstrap the native environment on first use.
+        // Block session creation until bootstrap completes.
         coroutineScope.launch(Dispatchers.IO) {
-            TerminalBootstrap.ensureEnvironment(context)
+            try {
+                TerminalBootstrap.ensureEnvironment(context)
+            } catch (e: Exception) {
+                Log.e(TAG, "Bootstrap failed", e)
+            } finally {
+                _bootstrapComplete.value = true
+            }
         }
         // Mirror SessionManager state into our StateFlows.
         coroutineScope.launch {
@@ -114,25 +125,39 @@ class TerminalManager private constructor(private val context: Context) {
 
     // ---- Session lifecycle ----
 
+    /**
+     * Create a new terminal session.
+     *
+     * Suspends until bootstrap is complete before attempting to launch bash.
+     * Only inserts session into state after provider succeeds.
+     */
     suspend fun createNewSession(): TerminalSessionData {
-        val sessionData = sessionManager.createNewSession(terminalType = TerminalType.LOCAL)
+        // Wait for bootstrap to finish before trying to exec bash.
+        _bootstrapComplete.first { it }
 
         return withContext(Dispatchers.IO) {
-            val result = localProvider.startSession(sessionData.id)
-            result.getOrThrow().let { (terminalSession, pty) ->
-                val writer = OutputStreamWriter(terminalSession.stdin, Charsets.UTF_8)
-                sessionManager.updateSession(sessionData.id) { s ->
-                    s.copy(
-                        terminalSession = terminalSession,
-                        pty = pty,
-                        sessionWriter = writer
-                    )
-                }
-                // Start reading output from the PTY
-                val readJob = startOutputReader(sessionData.id, terminalSession)
-                sessionManager.updateSession(sessionData.id) { s -> s.copy(readJob = readJob) }
-            }
-            sessionManager.getSession(sessionData.id) ?: sessionData
+            val tempData = TerminalSessionData(
+                title = "Shell ${(_sessions.value.size) + 1}",
+                terminalType = TerminalType.LOCAL
+            )
+
+            // Try provider first. If this throws, no orphan session in state.
+            val (terminalSession, pty) = localProvider.startSession(tempData.id).getOrThrow()
+
+            val writer = OutputStreamWriter(terminalSession.stdin, Charsets.UTF_8)
+            val readJob = startOutputReader(tempData.id, terminalSession)
+
+            val sessionData = tempData.copy(
+                terminalSession = terminalSession,
+                pty = pty,
+                sessionWriter = writer,
+                readJob = readJob,
+                initState = SessionInitState.READY
+            )
+
+            // Now insert the fully-initialized session.
+            sessionManager.insertSession(sessionData)
+            sessionData
         }
     }
 
@@ -156,9 +181,15 @@ class TerminalManager private constructor(private val context: Context) {
 
     // ---- I/O ----
 
-    suspend fun sendCommand(command: String): String {
-        val session = sessionManager.getCurrentSession() ?: return ""
-        val writer = session.sessionWriter ?: return ""
+    /**
+     * Send a newline-terminated command (e.g. from the input bar).
+     * Returns true if the command was actually written, false otherwise.
+     */
+    suspend fun sendCommand(command: String): Boolean {
+        val session = sessionManager.getCurrentSession() ?: return false
+        val writer = session.sessionWriter ?: return false
+
+        // Track the command for the parsed UI
         val commandId = UUID.randomUUID().toString()
         session.currentExecutingCommand = com.ai.assistance.operit.terminal.data.CommandHistoryItem(
             id = commandId,
@@ -167,7 +198,7 @@ class TerminalManager private constructor(private val context: Context) {
             output = "",
             isExecuting = true
         )
-        session.currentCommandStartedAtMs = System.currentTimeMillis()
+
         _userInputEvents.tryEmit(
             UserInputEvent(
                 sessionId = session.id,
@@ -175,16 +206,21 @@ class TerminalManager private constructor(private val context: Context) {
                 isCommand = true
             )
         )
+
         withContext(Dispatchers.IO) {
             writer.write(command + "\n")
             writer.flush()
         }
-        return command
+        return true
     }
 
-    fun sendInput(input: String) {
-        val session = sessionManager.getCurrentSession() ?: return
-        val writer = session.sessionWriter ?: return
+    /**
+     * Send newline-terminated input for interactive prompts (sudo, y/n, etc.).
+     * Returns true if written.
+     */
+    fun sendInput(input: String): Boolean {
+        val session = sessionManager.getCurrentSession() ?: return false
+        val writer = session.sessionWriter ?: return false
         _userInputEvents.tryEmit(
             UserInputEvent(
                 sessionId = session.id,
@@ -196,13 +232,33 @@ class TerminalManager private constructor(private val context: Context) {
             writer.write(input + "\n")
             writer.flush()
         }
+        return true
+    }
+
+    /**
+     * Send raw bytes to the PTY without appending a newline.
+     * Used by the canvas terminal view for keystroke-level I/O.
+     */
+    fun sendRawInput(data: String) {
+        val session = sessionManager.getCurrentSession() ?: return
+        val writer = session.sessionWriter ?: return
+        _userInputEvents.tryEmit(
+            UserInputEvent(
+                sessionId = session.id,
+                text = data,
+                isCommand = false
+            )
+        )
+        coroutineScope.launch(Dispatchers.IO) {
+            writer.write(data)
+            writer.flush()
+        }
     }
 
     fun sendInterruptSignal() {
         val session = sessionManager.getCurrentSession() ?: return
         val writer = session.sessionWriter ?: return
         coroutineScope.launch(Dispatchers.IO) {
-            // Send Ctrl-C (ETX, 0x03)
             writer.write("\u0003")
             writer.flush()
         }
@@ -218,6 +274,9 @@ class TerminalManager private constructor(private val context: Context) {
 
     // ---- Output reader ----
 
+    /**
+     * On EOF / error, marks the session as dead so the UI can react.
+     */
     private fun startOutputReader(sessionId: String, terminalSession: TerminalSession): kotlinx.coroutines.Job {
         return coroutineScope.launch(Dispatchers.IO) {
             val buffer = ByteArray(4096)
@@ -236,7 +295,34 @@ class TerminalManager private constructor(private val context: Context) {
                     Log.e(TAG, "Output reader error for session $sessionId", e)
                 }
             }
+
+            // PTY exited — get exit code and mark session dead.
             Log.d(TAG, "Output reader finished for session $sessionId")
+            val exitCode = try {
+                terminalSession.process.exitValue()
+            } catch (_: Exception) {
+                -1
+            }
+            sessionManager.updateSession(sessionId) { s ->
+                s.copy(
+                    initState = SessionInitState.INITIALIZING,
+                    readJob = null
+                )
+            }
+            _commandExecutionEvents.tryEmit(
+                CommandExecutionEvent(
+                    commandId = "exit",
+                    sessionId = sessionId,
+                    outputChunk = "Terminal exited with code $exitCode",
+                    isCompleted = true
+                )
+            )
         }
     }
+}
+
+/** Suspend until a StateFlow emits a value matching [predicate]. */
+private suspend fun <T> StateFlow<T>.first(predicate: (T) -> Boolean): T {
+    if (predicate(value)) return value
+    return kotlinx.coroutines.flow.first(predicate)
 }
