@@ -61,7 +61,8 @@ class TerminalService : Service() {
 
         override fun sendCommand(command: String): String {
             return runBlocking {
-                terminalManager.sendCommand(command)
+                val sent = terminalManager.sendCommand(command)
+                if (sent) command else ""
             }
         }
 
