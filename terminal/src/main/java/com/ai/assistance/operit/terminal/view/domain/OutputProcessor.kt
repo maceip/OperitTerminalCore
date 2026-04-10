@@ -406,31 +406,16 @@ class OutputProcessor(
      */
     fun isInteractivePrompt(line: String, sessionId: String, sessionManager: SessionManager): Boolean {
         val session = sessionManager.getSession(sessionId) ?: return false
-        val pty = session.pty ?: return false
         
         // 只在有命令执行时才检测（避免误判普通 shell 提示符）
         if (session.currentExecutingCommand?.isExecuting != true) {
             return false
         }
-        
-        try {
-            val ptyMode = pty.getPtyMode()
-            val isWaiting = ptyMode.isWaitingForInput()
-            
-            if (!isWaiting) {
-                return false
-            }
-            
-            // 无论 canonical 还是 non-canonical mode，都完全依赖 PTY 状态判断
-            // 不使用任何文本模式匹配或关键词判断
-            val mode = if (ptyMode.isCanonicalMode) "canonical" else "non-canonical"
-            Log.d(TAG, "Detected interactive prompt ($mode mode, available=${ptyMode.availableBytes}): $line")
-            
-            return true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking PTY mode", e)
-            return false
-        }
+
+        // The current PTY wrapper no longer exposes a mode-inspection API.
+        // Until terminal-core restores that contract, treat interactive-prompt
+        // detection as disabled instead of failing compilation.
+        return false
     }
 
 
