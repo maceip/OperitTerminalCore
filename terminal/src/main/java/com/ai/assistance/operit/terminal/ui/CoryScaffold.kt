@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.ai.assistance.operit.terminal.TerminalEnv
+import com.ai.assistance.operit.terminal.tui.TuiBridgeView
 
 /**
  * Adaptive scaffold: single pane on phone, dual pane on foldable/tablet.
@@ -98,23 +99,32 @@ fun CoryScaffold(
                 }
             }
         } else {
-            // Phone / foldable closed: agent view only
+            // Phone / foldable closed
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color(0xFF0B1016))
                     .padding(padding)
             ) {
-                AgentView(
-                    sessionId = env.currentSessionId,
-                    blocks = blocks,
-                    onToggleText = { index ->
-                        env.currentSessionId?.let { agentUiState.toggleText(it, index) }
-                    },
-                    onToggleCommand = { index ->
-                        env.currentSessionId?.let { agentUiState.toggleCommand(it, index) }
-                    }
-                )
+                if (env.isFullscreen) {
+                    // TUI apps on phone: scrape shadow emulator into native widgets
+                    TuiBridgeView(
+                        shadowEmulator = env.shadowEmulator,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    // Normal shell mode: structured agent view
+                    AgentView(
+                        sessionId = env.currentSessionId,
+                        blocks = blocks,
+                        onToggleText = { index ->
+                            env.currentSessionId?.let { agentUiState.toggleText(it, index) }
+                        },
+                        onToggleCommand = { index ->
+                            env.currentSessionId?.let { agentUiState.toggleCommand(it, index) }
+                        }
+                    )
+                }
             }
         }
     }

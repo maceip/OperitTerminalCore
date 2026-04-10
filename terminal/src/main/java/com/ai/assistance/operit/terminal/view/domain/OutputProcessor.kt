@@ -63,6 +63,11 @@ class OutputProcessor(
         // 始终更新 ANSI 解析器（用于 Canvas 渲染），包括初始化阶段
         // 这样用户可以看到初始化过程中的所有输出，包括错误信息
         session.ansiParser.parse(chunk)
+
+        // Always feed the shadow emulator (fixed 80x24) for TUI scraping.
+        // This runs in parallel with the display emulator so TuiBridgeView
+        // can decompose full-width TUI output into native phone widgets.
+        session.shadowEmulator.parse(chunk)
         
         // 如果在全屏模式下，跳过行解析逻辑（全屏应用自己管理屏幕）
         if (session.isFullscreen) {

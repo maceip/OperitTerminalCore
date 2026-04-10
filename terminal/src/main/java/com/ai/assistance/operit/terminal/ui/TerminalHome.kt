@@ -60,6 +60,7 @@ import com.ai.assistance.operit.terminal.utils.VirtualKeyboardConfigManager
 import com.ai.assistance.operit.terminal.view.SyntaxColors
 import com.ai.assistance.operit.terminal.view.SyntaxHighlightingVisualTransformation
 import com.ai.assistance.operit.terminal.view.highlight
+import com.ai.assistance.operit.terminal.tui.TuiBridgeView
 import androidx.compose.material.icons.filled.Settings
 import java.io.File
 import kotlinx.coroutines.delay
@@ -157,6 +158,10 @@ fun TerminalHome(
     // 非全屏模式下虚拟键盘显示状态
     var showVirtualKeyboard by remember { mutableStateOf(false) }
     var isDirectInputMode by remember { mutableStateOf(false) }
+
+    // When true, fullscreen TUIs are rendered via TuiBridgeView (scraped native widgets)
+    // instead of the raw CanvasTerminalScreen.
+    var useTuiBridge by remember { mutableStateOf(true) }
 
     var ctrlActive by remember { mutableStateOf(false) }
     var altActive by remember { mutableStateOf(false) }
@@ -303,24 +308,70 @@ fun TerminalHome(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                // 终端输出区域
-                CanvasTerminalScreen(
-                    emulator = env.terminalEmulator,
-                    modifier = Modifier.weight(1f),
-                    config = fontConfig,
-                    pty = currentPty,
-                    imeAnimationOffsetPx = fullscreenImeBottomPx,
-                    committedImeBottomInsetPx = committedFullscreenImeBottomPx,
-                    onInput = { sendDirectInput(it) },
-                    sessionId = env.currentSessionId,
-                    onScrollOffsetChanged = { id, offset -> env.saveScrollOffset(id, offset) },
-                    getScrollOffset = { id -> env.getScrollOffset(id) },
-                    tabs = tabItems,
-                    currentTabId = env.currentSessionId,
-                    onTabClick = env::onSwitchSession,
-                    onTabClose = onTabCloseRequest,
-                    onNewTab = env::onNewSession
-                )
+                if (useTuiBridge) {
+                    // TUI Bridge mode: scrape shadow emulator → native Compose widgets
+                    Box(modifier = Modifier.weight(1f)) {
+                        TuiBridgeView(
+                            shadowEmulator = env.shadowEmulator,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // Toggle to raw canvas mode
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .clickable { useTuiBridge = false },
+                            color = Color(0x99000000),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "RAW",
+                                color = Color(0xFF6B7D93),
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                } else {
+                    // Raw canvas mode: standard fullscreen terminal rendering
+                    Box(modifier = Modifier.weight(1f)) {
+                        CanvasTerminalScreen(
+                            emulator = env.terminalEmulator,
+                            modifier = Modifier.fillMaxSize(),
+                            config = fontConfig,
+                            pty = currentPty,
+                            imeAnimationOffsetPx = fullscreenImeBottomPx,
+                            committedImeBottomInsetPx = committedFullscreenImeBottomPx,
+                            onInput = { sendDirectInput(it) },
+                            sessionId = env.currentSessionId,
+                            onScrollOffsetChanged = { id, offset -> env.saveScrollOffset(id, offset) },
+                            getScrollOffset = { id -> env.getScrollOffset(id) },
+                            tabs = tabItems,
+                            currentTabId = env.currentSessionId,
+                            onTabClick = env::onSwitchSession,
+                            onTabClose = onTabCloseRequest,
+                            onNewTab = env::onNewSession
+                        )
+                        // Toggle to TUI bridge mode
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .clickable { useTuiBridge = true },
+                            color = Color(0x99000000),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "TUI",
+                                color = Color(0xFF6B7D93),
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
 
                 Box(
                     modifier =
