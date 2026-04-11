@@ -14,4 +14,4 @@ data class TerminalSession(
     val process: Process,
     val stdout: InputStream,
     val stdin: OutputStream
-) 
+)

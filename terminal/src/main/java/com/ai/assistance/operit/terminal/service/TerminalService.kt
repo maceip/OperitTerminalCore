@@ -86,7 +86,7 @@ class TerminalService : Service() {
         super.onCreate()
         startForegroundCompat()
         terminalManager = TerminalManager.getInstance(applicationContext)
-        
+
         // 监听命令执行事件
         terminalManager.commandExecutionEvents
             .onEach { event ->
@@ -94,7 +94,7 @@ class TerminalService : Service() {
                 broadcastCommandExecutionEvent(event)
             }
             .launchIn(scope)
-            
+
         // 监听目录变化事件
         terminalManager.directoryChangeEvents
             .onEach { event ->
@@ -113,7 +113,7 @@ class TerminalService : Service() {
         job.cancel()
         callbacks.kill()
     }
-    
+
     // 事件广播方法
     private fun broadcastCommandExecutionEvent(event: CommandExecutionEvent) {
         val n = callbacks.beginBroadcast()
@@ -129,7 +129,7 @@ class TerminalService : Service() {
         callbacks.finishBroadcast()
         Log.d("TerminalService", "Finished broadcasting command execution event")
     }
-    
+
     private fun broadcastDirectoryChangeEvent(event: SessionDirectoryEvent) {
         val n = callbacks.beginBroadcast()
         for (i in 0 until n) {

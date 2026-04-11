@@ -7,8 +7,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.ai.assistance.operit.terminal.view.domain.ansi.AnsiTerminalEmulator
 
 /**
- * Compose集成桥接
- * 将CanvasTerminalView包装为Compose组件
+ * Compose
+ * CanvasTerminalViewCompose
  */
 @Composable
 fun CanvasTerminalScreen(
@@ -43,13 +43,13 @@ fun CanvasTerminalScreen(
                 setScaleCallback(onScaleChanged)
                 setSessionScrollCallbacks(sessionId, onScrollOffsetChanged, getScrollOffset)
                 setTabBarState(tabs, currentTabId, onTabClick, onTabClose, onNewTab)
-                
-                // 全屏模式下自动请求焦点
+
+                //
                 post {
                     requestFocus()
                 }
-                
-                // 请求父容器不要拦截触摸事件，让终端视图处理滚动和缩放手势
+
+                // ，
                 setOnTouchListener { v, event ->
                     when (event.action) {
                         MotionEvent.ACTION_DOWN ->
@@ -57,7 +57,7 @@ fun CanvasTerminalScreen(
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
                             v.parent?.requestDisallowInterceptTouchEvent(false)
                     }
-                    false // 返回 false 让 View 继续处理事件
+                    false //  false  View
                 }
             }
         },
@@ -74,7 +74,7 @@ fun CanvasTerminalScreen(
             view.setTabBarState(tabs, currentTabId, onTabClick, onTabClose, onNewTab)
         },
         onRelease = { view ->
-            // 在视图被移除时释放资源，避免持有渲染线程和监听器引用
+            // ，
             view.release()
         },
         modifier = modifier
@@ -82,7 +82,7 @@ fun CanvasTerminalScreen(
 }
 
 /**
- * 带配置的Canvas终端视图
+ * Canvas
  */
 @Composable
 fun ConfigurableCanvasTerminal(
@@ -102,9 +102,9 @@ fun ConfigurableCanvasTerminal(
             cursorColor = cursorColor
         )
     }
-    
+
     var currentScale by remember { mutableStateOf(1f) }
-    
+
     CanvasTerminalScreen(
         emulator = emulator,
         modifier = modifier,
@@ -115,7 +115,7 @@ fun ConfigurableCanvasTerminal(
 }
 
 /**
- * 性能监控版本的Canvas终端
+ * Canvas
  */
 @Composable
 fun PerformanceMonitoredTerminal(
@@ -134,8 +134,8 @@ fun PerformanceMonitoredTerminal(
                 setPerformanceCallback { fps: Float, frameTime: Long ->
                     onFpsUpdate(fps)
                 }
-                
-                // 请求父容器不要拦截触摸事件，让终端视图处理滚动和缩放手势
+
+                // ，
                 setOnTouchListener { v, event ->
                     when (event.action) {
                         MotionEvent.ACTION_DOWN ->
@@ -143,7 +143,7 @@ fun PerformanceMonitoredTerminal(
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
                             v.parent?.requestDisallowInterceptTouchEvent(false)
                     }
-                    false // 返回 false 让 View 继续处理事件
+                    false //  false  View
                 }
             }
         },
@@ -152,7 +152,7 @@ fun PerformanceMonitoredTerminal(
             view.setEmulator(emulator)
         },
         onRelease = { view ->
-            // 在视图被移除时释放资源，避免持有渲染线程和监听器引用
+            // ，
             view.release()
         },
         modifier = modifier
@@ -160,8 +160,8 @@ fun PerformanceMonitoredTerminal(
 }
 
 /**
- * 非全屏Canvas终端输出
- * 仅用于显示终端输出，不处理输入
+ * Canvas
+ * ，
  */
 @Composable
 fun CanvasTerminalOutput(
@@ -191,12 +191,12 @@ fun CanvasTerminalOutput(
                     animationOffsetPx = imeAnimationOffsetPx,
                     committedBottomInsetPx = committedImeBottomInsetPx
                 )
-                setFullscreenMode(false) // 关键：设置为非全屏模式
+                setFullscreenMode(false) // ：
                 setOnRequestShowKeyboard(onRequestShowKeyboard)
                 setSessionScrollCallbacks(sessionId, onScrollOffsetChanged, getScrollOffset)
                 setTabBarState(tabs, currentTabId, onTabClick, onTabClose, onNewTab)
-                
-                // 请求父容器不要拦截触摸事件，让终端视图处理滚动手势
+
+                // ，
                 setOnTouchListener { v, event ->
                     when (event.action) {
                         MotionEvent.ACTION_DOWN ->
@@ -204,7 +204,7 @@ fun CanvasTerminalOutput(
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
                             v.parent?.requestDisallowInterceptTouchEvent(false)
                     }
-                    false // 返回 false 让 View 继续处理事件
+                    false //  false  View
                 }
             }
         },
@@ -221,9 +221,10 @@ fun CanvasTerminalOutput(
             view.setTabBarState(tabs, currentTabId, onTabClick, onTabClose, onNewTab)
         },
         onRelease = { view ->
-            // 在视图被移除时释放资源，避免持有渲染线程和监听器引用
+            // ，
             view.release()
         },
         modifier = modifier
     )
 }
+

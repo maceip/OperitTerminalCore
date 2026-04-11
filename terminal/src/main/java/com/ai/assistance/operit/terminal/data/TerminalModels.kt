@@ -34,15 +34,15 @@ class CommandHistoryItem(
     private var _command by mutableStateOf(command)
     private var _output by mutableStateOf(output)
     private var _isExecuting by mutableStateOf(isExecuting)
-    
+
     val outputPages = mutableStateListOf<String>()
-    
+
     // 为AIDL序列化提供稳定的getter
     val prompt: String get() = _prompt
     val command: String get() = _command
     val output: String get() = _output
     val isExecuting: Boolean get() = _isExecuting
-    
+
     // 为UI更新提供setter方法
     fun setPrompt(value: String) { _prompt = value }
     fun setCommand(value: String) { _command = value }
@@ -151,4 +151,4 @@ data class SourceConfig(
     val packageManager: PackageManagerType,
     val selectedSourceId: String,
     val sources: List<MirrorSource>
-) 
+)

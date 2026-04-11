@@ -34,7 +34,7 @@ enum class SSHAuthType {
      * 密码认证
      */
     PASSWORD,
-    
+
     /**
      * 公钥认证
      */
@@ -49,17 +49,17 @@ enum class SSHConnectionStatus {
      * 未连接
      */
     DISCONNECTED,
-    
+
     /**
      * 连接中
      */
     CONNECTING,
-    
+
     /**
      * 已连接
      */
     CONNECTED,
-    
+
     /**
      * 连接失败
      */

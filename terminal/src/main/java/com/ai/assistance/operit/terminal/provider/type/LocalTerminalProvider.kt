@@ -25,6 +25,10 @@ class LocalTerminalProvider(
     private val prefixDir: File = File(filesDir, "usr")
     private val binDir: File = File(prefixDir, "bin")
     private val libDir: File = File(prefixDir, "lib")
+    private val pythonRootDir: File = File(filesDir, "python")
+    private val pythonLibDir: File = File(pythonRootDir, "lib")
+    private val pythonStdlibDir: File = File(pythonLibDir, "python3.14")
+    private val pythonSitePackagesDir: File = File(pythonStdlibDir, "site-packages")
     private val homeDir: File = File(filesDir, "home")
     private val tmpDir: File = File(filesDir, "tmp")
     private val nativeLibDir: String = context.applicationInfo.nativeLibraryDir
@@ -120,15 +124,28 @@ class LocalTerminalProvider(
 
     override fun getEnvironment(): Map<String, String> = buildEnvironment()
 
-    private fun buildEnvironment(): Map<String, String> = mapOf(
-        "HOME" to homeDir.absolutePath,
-        "PATH" to "${binDir.absolutePath}:${nativeLibDir}:/system/bin",
-        "PREFIX" to prefixDir.absolutePath,
-        "LD_LIBRARY_PATH" to "${libDir.absolutePath}:${nativeLibDir}",
-        "TMPDIR" to tmpDir.absolutePath,
-        "TERM" to "xterm-256color",
-        "LANG" to "en_US.UTF-8",
-        "COLORTERM" to "truecolor",
-        "SHELL" to File(binDir, "bash").absolutePath
-    )
+    private fun buildEnvironment(): Map<String, String> {
+        val npmCacheDir = File(homeDir, ".npm")
+        npmCacheDir.mkdirs()
+
+        return mapOf(
+            "HOME" to homeDir.absolutePath,
+            "PATH" to "${binDir.absolutePath}:${nativeLibDir}:/system/bin",
+            "PREFIX" to prefixDir.absolutePath,
+            "LD_LIBRARY_PATH" to "${libDir.absolutePath}:${nativeLibDir}",
+            "TMPDIR" to tmpDir.absolutePath,
+            "TERM" to "xterm-256color",
+            "LANG" to "en_US.UTF-8",
+            "COLORTERM" to "truecolor",
+            "SHELL" to File(binDir, "bash").absolutePath,
+            "PYTHONHOME" to pythonRootDir.absolutePath,
+            "PYTHONPATH" to "${pythonSitePackagesDir.absolutePath}:${pythonStdlibDir.absolutePath}",
+            "NODE_PATH" to File(pythonLibDir, "node_modules").absolutePath,
+            "PIP_DISABLE_PIP_VERSION_CHECK" to "1",
+            "NPM_CONFIG_CACHE" to npmCacheDir.absolutePath,
+            "npm_config_cache" to npmCacheDir.absolutePath,
+            "NPM_CONFIG_PREFIX" to prefixDir.absolutePath,
+            "npm_config_prefix" to prefixDir.absolutePath
+        )
+    }
 }

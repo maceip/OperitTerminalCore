@@ -1,59 +1,59 @@
 package com.ai.assistance.operit.terminal.view.domain.ansi
 
 /**
- * ANSI 序列扫描器
- * 负责从文本流中识别和提取 ANSI 控制序列
+ * ANSI
+ *  ANSI
  */
 class AnsiScanner(private val input: String) {
     private var position = 0
-    
+
     /**
-     * 是否还有更多字符可读
+     *
      */
     fun hasNext(): Boolean = position < input.length
-    
+
     /**
-     * 获取当前位置
+     *
      */
     fun getPosition(): Int = position
-    
+
     /**
-     * 查看当前字符但不移动位置
+     *
      */
     fun peek(): Char? = if (hasNext()) input[position] else null
-    
+
     /**
-     * 查看指定偏移量的字符但不移动位置
+     *
      */
     fun peek(offset: Int): Char? {
         val index = position + offset
         return if (index < input.length) input[index] else null
     }
-    
+
     /**
-     * 读取当前字符并移动位置
+     *
      */
     fun next(): Char? {
         return if (hasNext()) input[position++] else null
     }
-    
+
     /**
-     * 扫描下一个 ANSI 序列或字符
+     *  ANSI
      */
     fun scanNext(): AnsiSequence? {
         if (!hasNext()) return null
-        
+
         val char = peek() ?: return null
-        
+
         return when {
             char == '\u001B' -> scanEscapeSequence()
             char.code in 0..31 || char == '\u007F' -> scanControlCharacter()
             else -> AnsiSequence.Text(next()!!)
         }
     }
-    
+
     /**
-     * 扫描所有序列
+     *
      */
     fun scanAll(): List<AnsiSequence> {
         val sequences = mutableListOf<AnsiSequence>()
@@ -62,19 +62,19 @@ class AnsiScanner(private val input: String) {
         }
         return sequences
     }
-    
+
     /**
-     * 扫描转义序列 (以 ESC 开头)
+     *  ( ESC )
      */
     private fun scanEscapeSequence(): AnsiSequence {
         val start = position
-        next() // 消费 ESC 字符
-        
+        next() //  ESC
+
         return when (peek()) {
             '[' -> scanCSI()
             ']' -> scanOSC()
             'P' -> scanDCS()
-            // DEC 特殊序列
+            // DEC
             '7' -> { next(); AnsiSequence.SingleEscape('7')
             } // DECSC
             '8' -> { next(); AnsiSequence.SingleEscape('8')
@@ -97,19 +97,19 @@ class AnsiScanner(private val input: String) {
             }
         }
     }
-    
+
     /**
-     * 扫描 CSI 序列 (Control Sequence Introducer)
-     * 格式: ESC [ [params] [intermediates] command
+     *  CSI  (Control Sequence Introducer)
+     * : ESC [ [params] [intermediates] command
      */
     private fun scanCSI(): AnsiSequence {
-        next() // 消费 '['
-        
-        // 检查是否为私有模式 (以 ? 开头)
+        next() //  '['
+
+        //  ( ? )
         val isPrivate = peek() == '?'
         if (isPrivate) next()
-        
-        // 读取参数 (数字和分号)
+
+        //  ()
         val paramsBuilder = StringBuilder()
         while (hasNext()) {
             val char = peek()!!
@@ -119,8 +119,8 @@ class AnsiScanner(private val input: String) {
                 break
             }
         }
-        
-        // 读取中间字符 (0x20-0x2F)
+
+        //  (0x20-0x2F)
         val intermediates = StringBuilder()
         while (hasNext()) {
             val char = peek()!!
@@ -130,20 +130,20 @@ class AnsiScanner(private val input: String) {
                 break
             }
         }
-        
-        // 读取命令字符 (0x40-0x7E)
+
+        //  (0x40-0x7E)
         val command = if (hasNext()) {
             val char = peek()!!
             if (char.code in 0x40..0x7E) {
                 next()!!
             } else {
-                '?' // 无效命令
+                '?' //
             }
         } else {
-            '?' // 未完成的序列
+            '?' //
         }
-        
-        // 解析参数
+
+        //
         val params = if (paramsBuilder.isEmpty()) {
             emptyList()
         } else {
@@ -151,7 +151,7 @@ class AnsiScanner(private val input: String) {
                 .split(';')
                 .map { it.toIntOrNull() ?: 0 }
         }
-        
+
         return AnsiSequence.CSI(
             params = params,
             command = command,
@@ -159,15 +159,15 @@ class AnsiScanner(private val input: String) {
             private = isPrivate
         )
     }
-    
+
     /**
-     * 扫描 OSC 序列 (Operating System Command)
-     * 格式: ESC ] command ; data BEL 或 ESC ] command ; data ESC \
+     *  OSC  (Operating System Command)
+     * : ESC ] command ; data BEL  ESC ] command ; data ESC \
      */
     private fun scanOSC(): AnsiSequence {
-        next() // 消费 ']'
-        
-        // 读取命令号
+        next() //  ']'
+
+        //
         val commandBuilder = StringBuilder()
         while (hasNext()) {
             val char = peek()!!
@@ -177,13 +177,13 @@ class AnsiScanner(private val input: String) {
                 break
             }
         }
-        
+
         val command = commandBuilder.toString().toIntOrNull() ?: 0
-        
-        // 消费分号
+
+        //
         if (peek() == ';') next()
-        
-        // 读取数据直到 BEL (\u0007) 或 ST (ESC \)
+
+        //  BEL (\u0007)  ST (ESC \)
         val dataBuilder = StringBuilder()
         while (hasNext()) {
             val char = peek()!!
@@ -198,18 +198,18 @@ class AnsiScanner(private val input: String) {
                 dataBuilder.append(next())
             }
         }
-        
+
         return AnsiSequence.OSC(command, dataBuilder.toString())
     }
-    
+
     /**
-     * 扫描 DCS 序列 (Device Control String)
-     * 格式: ESC P data ST
+     *  DCS  (Device Control String)
+     * : ESC P data ST
      */
     private fun scanDCS(): AnsiSequence {
-        next() // 消费 'P'
-        
-        // 读取数据直到 ST (ESC \)
+        next() //  'P'
+
+        //  ST (ESC \)
         val dataBuilder = StringBuilder()
         while (hasNext()) {
             val char = peek()!!
@@ -221,12 +221,12 @@ class AnsiScanner(private val input: String) {
                 dataBuilder.append(next())
             }
         }
-        
+
         return AnsiSequence.DCS(dataBuilder.toString())
     }
-    
+
     /**
-     * 扫描控制字符
+     *
      */
     private fun scanControlCharacter(): AnsiSequence {
         val char = next()!!
@@ -248,73 +248,73 @@ class AnsiScanner(private val input: String) {
 }
 
 /**
- * ANSI 工具函数
+ * ANSI
  */
 object AnsiUtils {
     /**
-     * 检测文本中是否包含 ANSI 序列
+     *  ANSI
      */
     fun containsAnsiSequences(text: String): Boolean {
         return text.contains('\u001B')
     }
-    
+
     /**
-     * 去除文本中的所有 ANSI 序列
+     *  ANSI
      */
     fun stripAnsi(text: String): String {
         if (!containsAnsiSequences(text)) return text
-        
+
         val scanner = AnsiScanner(text)
         val result = StringBuilder()
-        
+
         while (scanner.hasNext()) {
             when (val seq = scanner.scanNext()) {
                 is AnsiSequence.Text -> result.append(seq.char)
                 is AnsiSequence.ControlChar -> {
-                    // 保留某些控制字符
+                    //
                     when (seq.type) {
                         ControlCharType.TAB,
                         ControlCharType.LINE_FEED,
                         ControlCharType.CARRIAGE_RETURN -> result.append(seq.char)
-                        else -> {} // 忽略其他控制字符
+                        else -> {} //
                     }
                 }
-                else -> {} // 忽略所有 ANSI 序列
+                else -> {} //  ANSI
             }
         }
-        
+
         return result.toString()
     }
-    
+
     /**
-     * 检测文本是否包含进度行特征的 ANSI 序列
+     *  ANSI
      */
     fun isProgressLine(text: String): Boolean {
         if (!containsAnsiSequences(text)) {
-            // 检查是否包含回车符但没有换行符
+            //
             return text.contains('\r') && !text.contains('\n')
         }
-        
+
         val scanner = AnsiScanner(text)
-        
+
         while (scanner.hasNext()) {
             when (val seq = scanner.scanNext()) {
                 is AnsiSequence.ControlChar -> {
-                    // 包含回车符但整个文本没有换行符
+                    //
                     if (seq.type == ControlCharType.CARRIAGE_RETURN && !text.contains('\n')) {
                         return true
                     }
                 }
                 is AnsiSequence.CSI -> {
                     when (seq.command) {
-                        'K' -> return true // 清除行
-                        'A', 'B', 'C', 'D', 'G' -> return true // 光标移动
-                        's', 'u' -> return true // 保存/恢复光标 (ANSI.SYS)
+                        'K' -> return true //
+                        'A', 'B', 'C', 'D', 'G' -> return true //
+                        's', 'u' -> return true // / (ANSI.SYS)
                         else -> {}
                     }
                 }
                 is AnsiSequence.SingleEscape -> {
-                    // DEC 风格的保存/恢复光标
+                    // DEC /
                     if (seq.char == '7' || seq.char == '8') {
                         return true
                     }
@@ -322,16 +322,16 @@ object AnsiUtils {
                 else -> {}
             }
         }
-        
+
         return false
     }
-    
+
     /**
-     * 检测文本是否包含全屏模式切换序列
+     *
      */
     fun detectFullscreenMode(text: String): FullscreenMode? {
         val scanner = AnsiScanner(text)
-        
+
         while (scanner.hasNext()) {
             when (val seq = scanner.scanNext()) {
                 is AnsiSequence.CSI -> {
@@ -348,11 +348,11 @@ object AnsiUtils {
                 else -> {}
             }
         }
-        
+
         return null
     }
-    
+
     enum class FullscreenMode {
         ENTER, EXIT
     }
-} 
+}

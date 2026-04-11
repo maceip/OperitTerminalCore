@@ -29,8 +29,8 @@ internal data class TerminalTabAccessibilitySnapshot(
 )
 
 /**
- * 为终端视图提供无障碍支持
- * 将终端内容按行暴露给屏幕阅读器，并补齐顶部标签栏的虚拟节点。
+ *
+ * ，。
  */
 internal class TerminalAccessibilityDelegate(
     private val view: CanvasTerminalView,
@@ -60,7 +60,7 @@ internal class TerminalAccessibilityDelegate(
     }
 
     /**
-     * 通知无障碍服务终端内容已更新
+     *
      */
     fun notifyContentChanged() {
         view.post {
@@ -73,7 +73,7 @@ internal class TerminalAccessibilityDelegate(
     }
 
     /**
-     * 为终端的每一行和顶部标签栏创建虚拟无障碍节点
+     *
      */
     private inner class TerminalAccessibilityNodeProvider : AccessibilityNodeProvider() {
 
@@ -548,3 +548,4 @@ internal class TerminalAccessibilityDelegate(
         nodeProvider.clearAccessibilityFocus()
     }
 }
+

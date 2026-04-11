@@ -8,8 +8,8 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * 手势处理器
- * 支持缩放、滚动、文本选择
+ *
+ * 、、
  */
 class GestureHandler(
     context: Context,
@@ -21,10 +21,10 @@ class GestureHandler(
 ) {
     private val scaleGestureDetector: ScaleGestureDetector
     private val gestureDetector: GestureDetector
-    
+
     var isScaling = false
         private set
-    
+
     init {
         scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -32,17 +32,17 @@ class GestureHandler(
                 onScale(scaleFactor)
                 return true
             }
-            
+
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 isScaling = true
                 return true
             }
-            
+
             override fun onScaleEnd(detector: ScaleGestureDetector) {
                 isScaling = false
             }
         })
-        
+
         gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onScroll(
                 e1: MotionEvent?,
@@ -56,16 +56,16 @@ class GestureHandler(
                 }
                 return false
             }
-            
+
             override fun onDoubleTap(e: MotionEvent): Boolean {
                 onDoubleTap(e.x, e.y)
                 return true
             }
-            
+
             override fun onLongPress(e: MotionEvent) {
                 onLongPress(e.x, e.y)
             }
-            
+
             override fun onFling(
                 e1: MotionEvent?,
                 e2: MotionEvent,
@@ -78,15 +78,15 @@ class GestureHandler(
                 }
                 return false
             }
-            
+
             override fun onDown(e: MotionEvent): Boolean {
                 return true
             }
         })
     }
-    
+
     /**
-     * 处理触摸事件
+     *
      */
     fun onTouchEvent(event: MotionEvent): Boolean {
         var handled = scaleGestureDetector.onTouchEvent(event)
@@ -96,7 +96,7 @@ class GestureHandler(
 }
 
 /**
- * 文本选择管理器
+ *
  */
 class TextSelectionManager {
     data class Selection(
@@ -115,7 +115,7 @@ class TextSelectionManager {
                 else -> true
             }
         }
-        
+
         fun normalize(): Selection {
             return if (startRow < endRow || (startRow == endRow && startCol <= endCol)) {
                 this
@@ -124,17 +124,17 @@ class TextSelectionManager {
             }
         }
     }
-    
+
     var selection: Selection? = null
         private set
-    
+
     private var selectionStart: Pair<Int, Int>? = null
-    
+
     fun startSelection(row: Int, col: Int) {
         selectionStart = Pair(row, col)
         selection = Selection(row, col, row, col)
     }
-    
+
     fun updateSelection(row: Int, col: Int) {
         selectionStart?.let { (startRow, startCol) ->
             selection = Selection(startRow, startCol, row, col)
@@ -155,12 +155,13 @@ class TextSelectionManager {
         val current = selection ?: return
         setSelection(current.startRow, current.startCol, row, col)
     }
-    
+
     fun clearSelection() {
         selection = null
         selectionStart = null
     }
-    
+
     fun hasSelection(): Boolean = selection != null
 }
+
 

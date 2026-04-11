@@ -18,4 +18,4 @@ data class CommandExecutionEvent(
 data class SessionDirectoryEvent(
     val sessionId: String,
     val currentDirectory: String
-) : Parcelable 
+) : Parcelable

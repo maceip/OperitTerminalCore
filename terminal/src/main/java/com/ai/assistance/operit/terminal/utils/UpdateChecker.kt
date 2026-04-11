@@ -30,14 +30,14 @@ class UpdateChecker(private val context: Context) {
     suspend fun checkForUpdates(showToast: Boolean = false): UpdateResult = withContext(Dispatchers.IO) {
         try {
             val currentVersion = getCurrentAppVersion()
-            
+
             val url = URL(GITHUB_API_URL)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            
+
             val response = connection.inputStream.bufferedReader().use { it.readText() }
             connection.disconnect()
-            
+
             val tags = JSONArray(response)
             val latestVersion = findLatestVersion(tags)
 
@@ -46,7 +46,7 @@ class UpdateChecker(private val context: Context) {
             } else {
                 UpdateResult.UpToDate(currentVersion)
             }
-            
+
             // 如果需要显示 Toast，切换到主线程显示
             if (showToast) {
                 withContext(Dispatchers.Main) {
@@ -62,17 +62,17 @@ class UpdateChecker(private val context: Context) {
                     }
                 }
             }
-            
+
             result
         } catch (e: Exception) {
             val result = UpdateResult.Error(e.message ?: "Unknown error")
-            
+
             if (showToast) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, context.getString(com.ai.assistance.operit.terminal.R.string.update_check_failed_short), Toast.LENGTH_SHORT).show()
                 }
             }
-            
+
             result
         }
     }
@@ -137,4 +137,4 @@ class UpdateChecker(private val context: Context) {
             Toast.makeText(context, context.getString(com.ai.assistance.operit.terminal.R.string.cannot_open_browser), Toast.LENGTH_SHORT).show()
         }
     }
-} 
+}

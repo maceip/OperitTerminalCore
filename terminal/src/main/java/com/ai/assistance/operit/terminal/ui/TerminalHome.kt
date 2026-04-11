@@ -81,29 +81,29 @@ fun TerminalHome(
     val density = LocalDensity.current
     val fontConfigManager = remember { TerminalFontConfigManager.getInstance(context) }
     val virtualKeyboardConfigManager = remember { VirtualKeyboardConfigManager.getInstance(context) }
-    
-    // 字体配置状态
-    var fontConfig by remember { 
+
+    //
+    var fontConfig by remember {
         mutableStateOf(fontConfigManager.loadRenderConfig())
     }
     var virtualKeyboardLayout by remember {
         mutableStateOf(virtualKeyboardConfigManager.loadLayout())
     }
-    
-    // 监听字体配置变化（当从设置界面返回时）
+
+    // （）
     LaunchedEffect(Unit) {
-        // 每次进入时重新读取配置
+        //
         fontConfig = fontConfigManager.loadRenderConfig()
     }
-    
-    // 当组件重新组合时，检查配置是否变化并更新
+
+    // ，
     DisposableEffect(Unit) {
         val newConfig = fontConfigManager.loadRenderConfig()
-        
+
         if (fontConfig != newConfig) {
             fontConfig = newConfig
         }
-        
+
         onDispose { }
     }
 
@@ -120,7 +120,7 @@ fun TerminalHome(
             settingsPrefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
-    
+
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val rawImeBottomPx = WindowInsets.ime.getBottom(density)
@@ -130,31 +130,31 @@ fun TerminalHome(
     val committedFullscreenImeBottomPx = rememberSettledImeBottomPx(fullscreenImeBottomPx)
     val committedStandardImeBottomPx = rememberSettledImeBottomPx(standardImeBottomPx)
 
-    // 命令输入框焦点控制
+    //
     val inputFocusRequester = remember { FocusRequester() }
     var pendingShowIme by remember { mutableStateOf(false) }
 
     LaunchedEffect(pendingShowIme) {
         if (pendingShowIme) {
             pendingShowIme = false
-            // 模仿全屏模式，在焦点切换后稍微延迟再请求输入法
+            // ，
             delay(100)
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
             imm?.showSoftInput(rootView, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 
-    // 语法高亮
+    //
     val visualTransformation = remember { SyntaxHighlightingVisualTransformation() }
 
-    // 缩放状态
+    //
     var scaleFactor by remember { mutableStateOf(1f) }
 
-    // 删除确认弹窗状态
+    //
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var sessionToDelete by remember { mutableStateOf<String?>(null) }
-    
-    // 非全屏模式下虚拟键盘显示状态
+
+    //
     var showVirtualKeyboard by remember { mutableStateOf(false) }
     var isDirectInputMode by remember { mutableStateOf(false) }
 
@@ -253,18 +253,18 @@ fun TerminalHome(
     fun toggleDirectInputMode() {
         isDirectInputMode = !isDirectInputMode
         if (isDirectInputMode) {
-            // 进入直接输入模式：展开虚拟键盘，清空命令并收起系统键盘
+            // ：，
             showVirtualKeyboard = true
             env.onCommandChange("")
             keyboardController?.hide()
         } else {
-            // 退出直接输入模式：关闭虚拟键盘面板并恢复系统键盘
+            // ：
             showVirtualKeyboard = false
             keyboardController?.show()
         }
     }
 
-    // 计算基于缩放因子的字体大小和间距
+    //
     val baseFontSize = 14.sp
     val fontSize = with(LocalDensity.current) {
         (baseFontSize.toPx() * scaleFactor).toSp()
@@ -272,7 +272,7 @@ fun TerminalHome(
     val basePadding = 8.dp
     val padding = basePadding * scaleFactor
 
-    // 获取当前 session 的 PTY
+    //  session  PTY
     val currentPty = remember(env.currentSessionId, env.sessions) {
         env.sessions.find { it.id == env.currentSessionId }?.pty
     }
@@ -303,7 +303,7 @@ fun TerminalHome(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                // 终端输出区域
+                //
                 CanvasTerminalScreen(
                     emulator = env.terminalEmulator,
                     modifier = Modifier.weight(1f),
@@ -347,9 +347,9 @@ fun TerminalHome(
                         .fillMaxSize()
                         .navigationBarsPadding()
             ) {
-                // Canvas输出区域（占满剩余空间）
+                // Canvas（）
                 if (isDirectInputMode) {
-                    // 直接输入模式：使用与全屏相同的 CanvasTerminalScreen，点击画布时由 CanvasTerminalView 自己弹出输入法
+                    // ： CanvasTerminalScreen， CanvasTerminalView
                     CanvasTerminalScreen(
                         emulator = env.terminalEmulator,
                         modifier = Modifier.weight(1f),
@@ -368,7 +368,7 @@ fun TerminalHome(
                         onNewTab = env::onNewSession
                     )
                 } else {
-                    // 普通命令模式：只显示输出，点击画布时把焦点切到命令输入框并弹出输入法
+                    // ：，
                     CanvasTerminalOutput(
                         emulator = env.terminalEmulator,
                         modifier = Modifier.weight(1f),
@@ -397,7 +397,7 @@ fun TerminalHome(
                             translationY = -standardImeBottomPx.toFloat()
                         }
                 ) {
-                    // 终端工具栏
+                    //
                     TerminalToolbar(
                         onInterrupt = env::onInterrupt,
                         onSendCommand = { env.onSendInput(it, true) },
@@ -411,7 +411,7 @@ fun TerminalHome(
                         onToggleInputMode = { toggleDirectInputMode() }
                     )
 
-                    // 当前输入行：直接输入映射模式下隐藏（按图示仅保留工具栏右侧快捷按钮）
+                    // ：（）
                     if (!isDirectInputMode) {
                         Row(
                             modifier = Modifier
@@ -501,7 +501,7 @@ fun TerminalHome(
         }
     }
 
-    // 删除确认弹窗
+    //
     if (showDeleteConfirmDialog && sessionToDelete != null) {
         val context = LocalContext.current
         val sessionTitle = env.sessions.find { it.id == sessionToDelete }?.title ?: context.getString(com.ai.assistance.operit.terminal.R.string.unknown_session)
@@ -578,7 +578,7 @@ private fun rememberSettledImeBottomPx(targetBottomPx: Int, settleDelayMs: Long 
         previousTargetBottomPx = targetBottomPx
 
         if (targetBottomPx < previousTarget) {
-            // 键盘收起时反过来处理：先释放 viewport，再让内容跟随原始 inset 下移。
+            // ： viewport， inset 。
             settledBottomPx = 0
             return@LaunchedEffect
         }
@@ -617,7 +617,7 @@ private fun TerminalToolbar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (!isDirectInputMode) {
-                // Ctrl+C 中断按钮
+                // Ctrl+C
                 Surface(
                     modifier = Modifier.clickable { onInterrupt() },
                     color = Color(0xFF4A4A4A),
@@ -644,7 +644,7 @@ private fun TerminalToolbar(
                     }
                 }
 
-                // 分隔线
+                //
                 Box(
                     modifier = Modifier
                         .width(1.dp)
@@ -655,7 +655,7 @@ private fun TerminalToolbar(
 
             Spacer(Modifier.weight(1f))
 
-            // 环境配置按钮
+            //
             Surface(
                 modifier = Modifier.clickable { onNavigateToSetup() },
                 color = Color(0xFF4A4A4A),
@@ -704,7 +704,7 @@ private fun TerminalToolbar(
                 }
             }
 
-            // 设置按钮
+            //
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = context.getString(com.ai.assistance.operit.terminal.R.string.settings),
@@ -807,4 +807,5 @@ private fun KeyButton(
             )
         }
     }
-} 
+}
+
