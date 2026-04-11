@@ -8,7 +8,7 @@ import com.ai.assistance.operit.terminal.view.domain.ansi.AnsiTerminalEmulator
 import com.ai.assistance.operit.terminal.provider.type.TerminalType
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.serialization.Serializable
+
 import java.io.OutputStreamWriter
 import java.util.UUID
 
@@ -125,32 +125,3 @@ data class TerminalState(
         }
 }
 
-/**
- * 包管理器类型
- */
-enum class PackageManagerType(val displayName: String) {
-    APT("APT"),
-    PIP("Pip/Uv"),
-    NPM("NPM"),
-    RUST("Rust/Cargo")
-}
-
-/**
- * 镜像源信息
- */
-@Serializable
-data class MirrorSource(
-    val id: String,
-    val name: String,
-    val url: String,
-    val isHttps: Boolean = false
-)
-
-/**
- * 源配置
- */
-data class SourceConfig(
-    val packageManager: PackageManagerType,
-    val selectedSourceId: String,
-    val sources: List<MirrorSource>
-) 

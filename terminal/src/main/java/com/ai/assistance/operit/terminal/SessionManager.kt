@@ -31,11 +31,7 @@ class SessionManager(private val terminalManager: TerminalManager) {
         lateinit var newSession: TerminalSessionData
         _state.update { currentState ->
             val sessionCount = currentState.sessions.size + 1
-            val defaultTitle = when (terminalType) {
-                TerminalType.LOCAL -> "Shell $sessionCount"
-                TerminalType.SSH -> "SSH $sessionCount"
-                else -> "Terminal $sessionCount"
-            }
+            val defaultTitle = "Shell $sessionCount"
             newSession = TerminalSessionData(
                 title = title ?: defaultTitle,
                 terminalType = terminalType

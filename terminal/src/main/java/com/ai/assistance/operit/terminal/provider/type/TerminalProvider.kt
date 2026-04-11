@@ -87,23 +87,7 @@ interface TerminalProvider {
     fun getEnvironment(): Map<String, String>
 }
 
-/**
- * 终端类型枚举
- */
 enum class TerminalType {
-    /**
-     * Local native shell
-     */
-    LOCAL,
-    
-    /**
-     * SSH 远程终端
-     */
-    SSH,
-    
-    /**
-     * ADB 终端（未来可能支持）
-     */
-    ADB
+    LOCAL
 }
 

@@ -13,6 +13,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OperitTerminalCore"
+rootProject.name = "TerminalCore"
 include(":terminal")
 include(":demo")
