@@ -21,16 +21,11 @@ import com.ai.assistance.operit.terminal.TerminalEnv
 
 /**
  * Adaptive scaffold: single pane on phone, dual pane on foldable/tablet.
- *
- * Uses screen width (600dp breakpoint) instead of the experimental
- * Material3 adaptive API, which has unstable class names across versions.
+ * 600dp width breakpoint.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CoryScaffold(
-    env: TerminalEnv,
-    onNavigateToSettings: () -> Unit
-) {
+fun CoryScaffold(env: TerminalEnv) {
     val context = LocalContext.current
     val terminalManager = remember(context) {
         com.ai.assistance.operit.terminal.TerminalManager.getInstance(context)
@@ -47,8 +42,7 @@ fun CoryScaffold(
                 sessions = env.sessions,
                 currentSessionId = env.currentSessionId,
                 onSessionClick = env::onSwitchSession,
-                onAddSession = env::onNewSession,
-                onSettings = onNavigateToSettings
+                onAddSession = env::onNewSession
             )
         },
         bottomBar = {
@@ -56,7 +50,6 @@ fun CoryScaffold(
         }
     ) { padding ->
         if (isDualPane) {
-            // Foldable open / tablet: agent view (60%) + raw terminal (40%)
             Row(
                 modifier = Modifier
                     .fillMaxSize()
@@ -98,7 +91,6 @@ fun CoryScaffold(
                 }
             }
         } else {
-            // Phone / foldable closed: agent view only
             Column(
                 modifier = Modifier
                     .fillMaxSize()

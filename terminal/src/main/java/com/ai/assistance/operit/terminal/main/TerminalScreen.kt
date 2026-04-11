@@ -44,10 +44,7 @@ fun TerminalScreen(
         }
     }
 
-    CoryScaffold(
-        env = env,
-        onNavigateToSettings = { /* no settings screen yet */ }
-    )
+    CoryScaffold(env = env)
 }
 
 private tailrec fun Context.findActivity(): Activity? =
