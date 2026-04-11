@@ -34,12 +34,24 @@ object TerminalBootstrap {
     )
 
     /**
-     * Tool binaries the host app extracts into filesDir/python/bin/.
+     * Tool binaries the host app extracts into filesDir/python/bin/ (via assets).
      * We symlink them into PREFIX/bin so they're on PATH.
      */
-    private val TOOL_BINARIES = listOf(
+    private val ASSET_TOOL_BINARIES = listOf(
         "node",
-        "rg"
+        "rg",
+        "busybox"  // assets copy may have a busybox too; prefer jniLibs version
+    )
+
+    /**
+     * Native binaries packaged as lib*.so in jniLibs (extracted to nativeLibDir).
+     * These are PIE executables disguised as shared libs so Android unpacks them.
+     * Map: soName -> binName
+     */
+    private val NATIVE_TOOL_BINARIES = mapOf(
+        "libnode.so" to "node",
+        "libgit.so" to "git",
+        "librust.so" to "rustc"
     )
 
     fun ensureEnvironment(context: Context) {
@@ -75,13 +87,22 @@ object TerminalBootstrap {
             symlinkIfMissing(pythonShell, File(binDir, "python"))
         }
 
-        // ---- Tool binaries (extracted by host app to filesDir/python/bin/) ----
+        // ---- Native tool binaries (lib*.so in nativeLibDir → usr/bin/*) ----
+        for ((soName, binName) in NATIVE_TOOL_BINARIES) {
+            val linked = linkNativeBinary(nativeLibDir, binDir, soName, binName)
+            if (linked != null) {
+                Log.d(TAG, "Linked native tool: $soName -> $binName")
+            }
+        }
+
+        // ---- Asset tool binaries (extracted by host app to filesDir/python/bin/) ----
         val hostBinDir = File(filesDir, "python/bin")
-        for (tool in TOOL_BINARIES) {
+        for (tool in ASSET_TOOL_BINARIES) {
+            val target = File(binDir, tool)
+            if (target.exists()) continue  // prefer jniLibs version if already linked
             val source = File(hostBinDir, tool)
             if (source.exists()) {
-                symlinkIfMissing(source.absolutePath, File(binDir, tool))
-                // Make sure it's executable
+                symlinkIfMissing(source.absolutePath, target)
                 source.setExecutable(true)
             }
         }
