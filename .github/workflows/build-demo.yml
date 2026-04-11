@@ -53,14 +53,14 @@ jobs:
 
       - name: Create or update rolling release
         if: success() && github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: Latest Demo APK
-          body: |
-            Auto-built demo APK from `${{ github.sha }}`.
-
-            **Download:** [demo-debug.apk](https://github.com/${{ github.repository }}/releases/download/latest/demo-debug.apk)
-          files: demo/build/outputs/apk/debug/demo-debug.apk
-          prerelease: true
-          make_latest: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Delete old release and tag if they exist
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          # Create new release with APK
+          gh release create latest \
+            demo/build/outputs/apk/debug/demo-debug.apk \
+            --title "Latest Demo APK" \
+            --notes "Auto-built from \`${{ github.sha }}\`" \
+            --prerelease
