@@ -7,10 +7,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.ai.assistance.operit.terminal.view.domain.ansi.AnsiTerminalEmulator
 
 /**
- * Compose wrapper for the Canvas terminal renderer.
- *
- * Tab management is handled by our Compose SessionTabs — the internal
- * Canvas tab bar is disabled by passing empty tab state.
+ * Primary Compose wrapper for the Canvas terminal.
+ * Passes tab state to the Canvas view's built-in tab bar.
  */
 @Composable
 fun CanvasTerminalScreen(
@@ -24,7 +22,12 @@ fun CanvasTerminalScreen(
     onScaleChanged: (Float) -> Unit = {},
     sessionId: String? = null,
     onScrollOffsetChanged: ((String, Float) -> Unit)? = null,
-    getScrollOffset: ((String) -> Float)? = null
+    getScrollOffset: ((String) -> Float)? = null,
+    tabs: List<TerminalTabRenderItem> = emptyList(),
+    currentTabId: String? = null,
+    onTabClick: ((String) -> Unit)? = null,
+    onTabClose: ((String) -> Unit)? = null,
+    onNewTab: (() -> Unit)? = null
 ) {
     AndroidView(
         factory = { context ->
@@ -39,11 +42,8 @@ fun CanvasTerminalScreen(
                 setInputCallback(onInput)
                 setScaleCallback(onScaleChanged)
                 setSessionScrollCallbacks(sessionId, onScrollOffsetChanged, getScrollOffset)
-                // No tab bar — tabs are handled by Compose SessionTabs
-                setTabBarState(emptyList(), null, null, null, null)
-
+                setTabBarState(tabs, currentTabId, onTabClick, onTabClose, onNewTab)
                 post { requestFocus() }
-
                 setOnTouchListener { v, event ->
                     when (event.action) {
                         MotionEvent.ACTION_DOWN ->
@@ -65,6 +65,7 @@ fun CanvasTerminalScreen(
             )
             view.setInputCallback(onInput)
             view.setSessionScrollCallbacks(sessionId, onScrollOffsetChanged, getScrollOffset)
+            view.setTabBarState(tabs, currentTabId, onTabClick, onTabClose, onNewTab)
         },
         onRelease = { view ->
             view.release()
