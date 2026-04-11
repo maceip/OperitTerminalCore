@@ -61,10 +61,10 @@ object TerminalBootstrap {
             createBusyboxSymlinks(busyboxPath, binDir)
         }
 
-        // ---- Python wrapper (from jniLibs — built by host app's CMake) ----
-        // The host app builds libpython_shell.so (a PIE executable that calls
+        // ---- Python (from jniLibs — built by host app's CMake) ----
+        // The host app builds libpython3.so (a PIE executable that calls
         // Py_BytesMain). Link it as "python3" and "python".
-        val pythonShell = linkNativeBinary(nativeLibDir, binDir, "libpython_shell.so", "python3")
+        val pythonShell = linkNativeBinary(nativeLibDir, binDir, "libpython3.so", "python3")
         if (pythonShell != null) {
             symlinkIfMissing(pythonShell, File(binDir, "python"))
         }

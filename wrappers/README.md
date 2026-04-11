@@ -3,28 +3,26 @@
 These source files are built by the host app (mobile-sandbox), not by
 this library module. They live here as reference copies.
 
-## python_shell.c
+## python.c
 
-Minimal Python interpreter wrapper. Links against `libpython3.14.so`
+Python interpreter for Android. Links against `libpython3.14.so`
 and calls `Py_BytesMain()`. Build as a PIE executable named
-`libpython_shell.so` so Android extracts it to the native lib directory.
+`libpython3.so` so Android extracts it to the native lib directory.
 
 ### Adding to mobile-sandbox's CMakeLists.txt
 
 ```cmake
 # After the existing cory_python_runtime target:
-add_executable(python_shell ${CMAKE_CURRENT_SOURCE_DIR}/python_shell.c)
-target_link_libraries(python_shell cory_python_runtime android log)
-set_target_properties(python_shell PROPERTIES
-    OUTPUT_NAME "python_shell"
+add_executable(python3 ${CMAKE_CURRENT_SOURCE_DIR}/python.c)
+target_link_libraries(python3 cory_python_runtime android log)
+set_target_properties(python3 PROPERTIES
+    OUTPUT_NAME "python3"
     PREFIX "lib"
     SUFFIX ".so"
 )
 ```
 
 ### What this enables
-
-Once built and symlinked by TerminalBootstrap:
 
 ```
 $ python3                     # interactive REPL
@@ -43,7 +41,6 @@ shell script stubs at `usr/bin/npm` and `usr/bin/npx`.
 ### Getting npm
 
 ```bash
-# Download and extract npm for bundling
 curl -fsSL https://registry.npmjs.org/npm/-/npm-10.9.2.tgz | tar xz
 mv package/ app/src/main/assets/npm/
 ```
