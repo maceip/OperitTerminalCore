@@ -55,9 +55,15 @@ object TerminalBootstrap {
         listOf(binDir, libDir, homeDir, tmpDir).forEach { it.mkdirs() }
 
         // ---- Core shell (from jniLibs in the terminal module) ----
-        linkNativeBinary(nativeLibDir, binDir, "libbash.so", "bash")
+        val bashPath = linkNativeBinary(nativeLibDir, binDir, "libbash.so", "bash")
+        if (bashPath == null) {
+            Log.e(TAG, "CRITICAL: libbash.so not found in $nativeLibDir — shell will not work!")
+            Log.e(TAG, "Available native libs: ${File(nativeLibDir).listFiles()?.map { it.name } ?: "NONE"}")
+        }
         val busyboxPath = linkNativeBinary(nativeLibDir, binDir, "libbusybox.so", "busybox")
-        if (busyboxPath != null) {
+        if (busyboxPath == null) {
+            Log.e(TAG, "CRITICAL: libbusybox.so not found in $nativeLibDir — coreutils missing!")
+        } else {
             createBusyboxSymlinks(busyboxPath, binDir)
         }
 
@@ -108,7 +114,7 @@ object TerminalBootstrap {
         val target = File(binDir, linkName)
 
         if (!source.exists()) {
-            Log.d(TAG, "Native binary not found (may not be needed): $source")
+            Log.w(TAG, "Native binary not found: $source (looked for $soName in $nativeLibDir)")
             return null
         }
 

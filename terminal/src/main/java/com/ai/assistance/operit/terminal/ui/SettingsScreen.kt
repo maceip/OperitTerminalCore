@@ -50,17 +50,14 @@ fun SettingsScreen(
         viewModel { SettingsViewModel(context.applicationContext as android.app.Application) }
 
     val cacheSize by viewModel.cacheSize.collectAsState()
-    val updateStatus by viewModel.updateStatus.collectAsState()
     val isCalculatingCache by viewModel.isCalculatingCache.collectAsState()
-    val sshEnabled by viewModel.sshEnabled.collectAsState()
-    val sshConfig by viewModel.sshConfig.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = context.getString(com.ai.assistance.operit.terminal.R.string.settings_title),
+                        text = "Settings",
                         color = SettingsTheme.textColor
                     )
                 },
@@ -77,14 +74,10 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            SettingsCard(
-                title = context.getString(com.ai.assistance.operit.terminal.R.string.storage_management_title)
-            ) {
+            // Storage Management - the only setting that actually matters right now
+            SettingsCard(title = "Environment") {
                 Text(
-                    text = context.getString(
-                        com.ai.assistance.operit.terminal.R.string.ubuntu_environment_size,
-                        cacheSize
-                    ),
+                    text = "Size: $cacheSize",
                     color = SettingsTheme.secondaryTextColor
                 )
                 Row(
@@ -99,10 +92,7 @@ fun SettingsScreen(
                         if (isCalculatingCache) {
                             CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
                         } else {
-                            Text(
-                                text = context.getString(com.ai.assistance.operit.terminal.R.string.refresh_size),
-                                color = Color.White
-                            )
+                            Text(text = "Refresh", color = Color.White)
                         }
                     }
                     Button(
@@ -110,77 +100,18 @@ fun SettingsScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = SettingsTheme.dangerColor),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            text = context.getString(com.ai.assistance.operit.terminal.R.string.reset_environment),
-                            color = Color.White
-                        )
+                        Text(text = "Reset", color = Color.White)
                     }
                 }
             }
 
-            SettingsCard(
-                title = context.getString(com.ai.assistance.operit.terminal.R.string.project_address_title)
+            // Back button
+            Button(
+                onClick = onBack,
+                colors = ButtonDefaults.buttonColors(containerColor = SettingsTheme.surfaceColor),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = updateStatus, color = SettingsTheme.secondaryTextColor)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = { viewModel.openGitHubRepo() },
-                        colors = ButtonDefaults.buttonColors(containerColor = SettingsTheme.primaryColor),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = context.getString(com.ai.assistance.operit.terminal.R.string.visit_project),
-                            color = Color.White
-                        )
-                    }
-                    Button(
-                        onClick = { viewModel.checkForUpdates() },
-                        colors = ButtonDefaults.buttonColors(containerColor = SettingsTheme.surfaceColor),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = context.getString(com.ai.assistance.operit.terminal.R.string.check_updates),
-                            color = SettingsTheme.textColor
-                        )
-                    }
-                }
-            }
-
-            SettingsCard(title = "SSH") {
-                Text(
-                    text = if (sshEnabled) "Enabled" else "Disabled",
-                    color = SettingsTheme.secondaryTextColor
-                )
-                Text(
-                    text = sshConfig?.host ?: "No SSH host configured",
-                    color = SettingsTheme.secondaryTextColor,
-                    fontSize = 13.sp
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = { viewModel.setSSHEnabled(!sshEnabled) },
-                        colors = ButtonDefaults.buttonColors(containerColor = SettingsTheme.primaryColor),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = if (sshEnabled) "Disable SSH" else "Enable SSH",
-                            color = Color.White
-                        )
-                    }
-                    Button(
-                        onClick = onBack,
-                        colors = ButtonDefaults.buttonColors(containerColor = SettingsTheme.surfaceColor),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(text = "Back", color = SettingsTheme.textColor)
-                    }
-                }
+                Text(text = "Back", color = SettingsTheme.textColor)
             }
         }
     }

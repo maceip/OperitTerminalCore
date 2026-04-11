@@ -20,13 +20,13 @@ fun InputBar(env: TerminalEnv) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         OutlinedTextField(
             value = env.command,
             onValueChange = env::onCommandChange,
             modifier = Modifier.weight(1f),
-            placeholder = { Text("What should I do next...") },
+            placeholder = { Text("Enter command...") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = {
@@ -35,9 +35,9 @@ fun InputBar(env: TerminalEnv) {
         )
         Button(
             onClick = { env.onSendInput(env.command, true) },
-            modifier = Modifier.padding(start = 12.dp)
+            modifier = Modifier.padding(start = 8.dp)
         ) {
-            Text("▶", style = MaterialTheme.typography.titleMedium)
+            Text("Run", style = MaterialTheme.typography.labelLarge)
         }
     }
 }
