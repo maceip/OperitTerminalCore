@@ -94,10 +94,7 @@ dependencies {
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    
+
     // Kotlin Serialization
     implementation(libs.kotlinx.serialization)
-    
-    // SSH client
-    implementation("com.jcraft:jsch:0.1.55")
 }
